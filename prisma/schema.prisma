@@ -1,0 +1,553 @@
+// NBV CRM — Prisma schema
+// Production: PostgreSQL. Enums kept as String constants (src/lib/constants.ts)
+// for portability — can be upgraded to native Postgres enums later if desired.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────── Users & Auth ─────────────────────────
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String
+  role           String // ADMIN | RCIC | CASE_MANAGER | PLAN_WRITER | ACCOUNTANT
+  rcicLicenseNo  String?
+  passwordHash   String
+  mfaEnabled     Boolean   @default(false)
+  mfaSecretEnc   String? // AES-256-GCM encrypted TOTP secret
+  status         String    @default("ACTIVE") // INVITED | ACTIVE | DEACTIVATED
+  internalRate   Float?
+  lastLoginAt    DateTime?
+  failedAttempts Int       @default(0)
+  lockedUntil    DateTime?
+  createdAt      DateTime  @default(now())
+  deactivatedAt  DateTime?
+
+  sessions      Session[]
+  loginEvents   LoginEvent[]
+  tokens        AuthToken[]
+  tasks         Task[]
+  activityLogs  ActivityLog[]
+  rcicCases     Case[]        @relation("rcic")
+  managedCases  Case[]        @relation("caseManager")
+}
+
+model AuthToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique // sha256 of the raw token — raw never stored
+  purpose   String // INVITE | PASSWORD_RESET
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  device    String?
+  ip        String?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+}
+
+model LoginEvent {
+  id      Int      @id @default(autoincrement())
+  email   String
+  userId  String?
+  user    User?    @relation(fields: [userId], references: [id])
+  success Boolean
+  ip      String?
+  at      DateTime @default(now())
+}
+
+// ───────────────────────── Leads & Quotes ─────────────────────────
+
+model Lead {
+  id            String    @id @default(cuid())
+  name          String
+  email         String?
+  phone         String?
+  country       String?
+  sector        String?
+  city          String?
+  province      String?
+  source        String?
+  capitalBand   String?
+  scorecard     String? // GREEN | AMBER | RED
+  scorecardNote String?
+  stage         String    @default("NEW") // NEW|CONSULT_BOOKED|FEASIBILITY_SENT|QUOTE_SENT|FEE_AGREED|RETAINER_SENT|WON|LOST
+  lostReason    String?
+  icaSigned     Boolean   @default(false)
+  icaFee        Float?
+  createdAt     DateTime  @default(now())
+  convertedAt   DateTime?
+  clientId      String?
+
+  quotes FeeQuote[]
+}
+
+model FeeQuote {
+  id               String    @id @default(cuid())
+  number           String    @unique
+  leadId           String
+  lead             Lead      @relation(fields: [leadId], references: [id])
+  version          Int       @default(1)
+  listPrice        Float     @default(30000)
+  agreedFee        Float?
+  currency         String    @default("CAD")
+  status           String    @default("DRAFT") // DRAFT|PENDING_APPROVAL|SENT|NEGOTIATING|AGREED|DECLINED|EXPIRED
+  requiresApproval Boolean   @default(false)
+  approvedById     String?
+  sentAt           DateTime?
+  expiresAt        DateTime?
+  agreedAt         DateTime?
+  acceptanceRef    String?
+  createdAt        DateTime  @default(now())
+
+  adjustments QuoteAdjustment[]
+}
+
+model QuoteAdjustment {
+  id          String   @id @default(cuid())
+  quoteId     String
+  quote       FeeQuote @relation(fields: [quoteId], references: [id])
+  type        String // PCT_DISCOUNT|FIXED_REDUCTION|SCOPE_REMOVED|MARKET_ADJ|EQUITY_CONSIDERATION
+  amount      Float // negative = reduction
+  reason      String
+  createdById String?
+}
+
+// ───────────────────────── Clients & Family ─────────────────────────
+
+model Client {
+  id              String    @id @default(cuid())
+  clientNumber    String    @unique
+  firstName       String
+  lastName        String
+  email           String?
+  phone           String?
+  dateOfBirth     DateTime?
+  country         String?
+  maritalStatus   String?
+  uciNumber       String?
+  passportNumber  String? // encrypt at rest in production (field-level)
+  passportExpiry  DateTime?
+  pipedaConsentAt DateTime?
+  source          String?
+  status          String    @default("ACTIVE")
+  netWorthBand    String?
+  entrepreneurCv  String?
+  createdAt       DateTime  @default(now())
+
+  familyMembers FamilyMember[]
+  cases         Case[]
+  trustTxns     TrustTransaction[]
+  invoices      Invoice[]
+  contactLogs   ContactLogEntry[]
+}
+
+model FamilyMember {
+  id               String    @id @default(cuid())
+  clientId         String
+  client           Client    @relation(fields: [clientId], references: [id])
+  relationship     String // SPOUSE|COMMON_LAW|CHILD|PARENT|OTHER
+  accompanying     Boolean   @default(true)
+  firstName        String
+  lastName         String
+  dateOfBirth      DateTime
+  birthCountry     String?
+  citizenship      String?
+  passportNumber   String?
+  passportExpiry   DateTime?
+  occupationOrGrade String?
+  priorRefusals    Boolean   @default(false)
+  uci              String?
+  dependentEligible Boolean?
+  biometricsStatus String? // REQUIRED|BOOKED|DONE|EXEMPT
+  medicalStatus    String? // REQUIRED|BOOKED|PASSED|NA
+  companionCaseId  String?
+  docsPct          Int       @default(0)
+}
+
+model ContactLogEntry {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+  memberName  String?
+  channel     String // CALL|EMAIL|WHATSAPP|MEETING
+  summary     String
+  adviceGiven Boolean  @default(false)
+  lockedAt    DateTime?
+  createdById String
+  createdAt   DateTime @default(now())
+}
+
+// ───────────────────────── Cases ─────────────────────────
+
+model Case {
+  id             String    @id @default(cuid())
+  fileNumber     String    @unique
+  clientId       String
+  client         Client    @relation(fields: [clientId], references: [id])
+  caseType       String // C11_NEW|C11_PURCHASE|C11_EXTENSION|SPOUSE_OWP|CHILD_SP|PR_TRANSITION|OTHER
+  engagementMode String    @default("SOLE_OWNERSHIP") // SOLE_OWNERSHIP|PARTNERSHIP_FINANCIAL|PARTNERSHIP_SERVICES
+  currentStage   String
+  status         String    @default("OPEN") // OPEN|ON_HOLD|CLOSED|WITHDRAWN
+  rcicId         String
+  rcic           User      @relation("rcic", fields: [rcicId], references: [id])
+  caseManagerId  String?
+  caseManager    User?     @relation("caseManager", fields: [caseManagerId], references: [id])
+  agreedFee      Float?
+  parentCaseId   String?
+  openedAt       DateTime  @default(now())
+  closedAt       DateTime?
+  destructionDate DateTime?
+
+  stageLogs    CaseStageLog[]
+  proposal     BusinessProposal?
+  corp         CorporateEntity?
+  portal       EmployerPortalRecord?
+  workPermit   WorkPermitRecord?
+  documents    DocumentItem[]
+  folders      Folder[]
+  tasks        Task[]
+  deadlines    Deadline[]
+  invoices     Invoice[]
+}
+
+model CaseStageLog {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id])
+  fromStage String?
+  toStage   String
+  note      String?
+  byUserId  String
+  at        DateTime @default(now())
+}
+
+// ───────────────────────── Track A: Business Proposal ─────────────────────────
+
+model BusinessProposal {
+  id              String    @id @default(cuid())
+  caseId          String    @unique
+  case            Case      @relation(fields: [caseId], references: [id])
+  sector          String?
+  locationCity    String?
+  locationProv    String?
+  state           String    @default("OUTLINE") // OUTLINE|DRAFTING|INTERNAL_REVIEW|CLIENT_REVIEW|CLIENT_APPROVED|FINAL_LOCKED|SUBMITTED
+  currentVersion  String    @default("v0.1")
+  writerName      String?
+  rcicSignedOffAt DateTime?
+  clientApprovedAt DateTime?
+  finalSha256     String?
+  benefitAngles   String? // comma list: jobs,regional,innovation
+
+  plannedHires PlannedHire[]
+}
+
+model PlannedHire {
+  id           String  @id @default(cuid())
+  proposalId   String
+  proposal     BusinessProposal @relation(fields: [proposalId], references: [id])
+  title        String
+  noc          String?
+  teer         Int?
+  salary       Float
+  startQuarter String?
+  hiredActual  Boolean @default(false)
+  hiredAt      DateTime?
+}
+
+// ───────────────────────── Track B: Corporation & Partnership ─────────────────────────
+
+model CorporateEntity {
+  id             String    @id @default(cuid())
+  caseId         String    @unique
+  case           Case      @relation(fields: [caseId], references: [id])
+  legalName      String?
+  jurisdiction   String?
+  nuansRef       String?
+  certificateNo  String?
+  incorporatedAt DateTime?
+  businessNumber String?
+  craAccounts    String? // "RC0001,RP0001,RT0001"
+  stage          String    @default("NAME_SEARCH") // NAME_SEARCH|ARTICLES_FILED|INCORPORATED|BN_OBTAINED|COMPLETE
+  annualReturnDue DateTime?
+
+  shareholders Shareholder[]
+  bankAccounts BankAccount[]
+  deal         PartnershipDeal?
+}
+
+model Shareholder {
+  id        String          @id @default(cuid())
+  corpId    String
+  corp      CorporateEntity @relation(fields: [corpId], references: [id])
+  name      String
+  party     String // CLIENT|NBV|OTHER
+  shareClass String  @default("A")
+  pct       Float
+}
+
+model PartnershipDeal {
+  id                   String          @id @default(cuid())
+  corpId               String          @unique
+  corp                 CorporateEntity @relation(fields: [corpId], references: [id])
+  financialInvolvement Boolean
+  clientPct            Float
+  nbvPct               Float
+  feeArrangement       String // FULL_FEES|REDUCED_FEES|FEES_FOR_EQUITY
+  status               String          @default("STRUCTURING") // STRUCTURING|COI_GATE|AGREEMENTS|SHARES_ISSUED|ACTIVE|EXITED
+  coiDisclosure        Boolean         @default(false)
+  ilaStatus            String? // CONFIRMED|WAIVED|PENDING
+  clientConsent        Boolean         @default(false)
+  retainerAddendum     Boolean         @default(false)
+  nbvCapitalCommitted  Float           @default(0)
+  nbvCapitalPaid       Float           @default(0)
+
+  distributions Distribution[]
+  costSplits    CostSplit[]
+}
+
+model CostSplit {
+  id        String          @id @default(cuid())
+  dealId    String
+  deal      PartnershipDeal @relation(fields: [dealId], references: [id])
+  category  String // INCORPORATION|GOVT_FEES|BUSINESS_CAPITAL|OPERATING_TOPUP
+  clientPct Float
+  nbvPct    Float
+}
+
+model Distribution {
+  id          String          @id @default(cuid())
+  dealId      String
+  deal        PartnershipDeal @relation(fields: [dealId], references: [id])
+  declaredAt  DateTime
+  totalAmount Float
+  nbvShare    Float
+  clientShare Float
+  paidAt      DateTime?
+}
+
+// ───────────────────────── Track C: Banking & Capital ─────────────────────────
+
+model BankAccount {
+  id        String          @id @default(cuid())
+  corpId    String
+  corp      CorporateEntity @relation(fields: [corpId], references: [id])
+  bankName  String
+  status    String          @default("SELECTED") // SELECTED|APPT_BOOKED|DOCS_SUBMITTED|OPENED|CAPITAL_DEPOSITED|VERIFIED
+  maskedNo  String?
+  openedAt  DateTime?
+
+  capitalTxns CapitalTransaction[]
+}
+
+model CapitalTransaction {
+  id            String      @id @default(cuid())
+  bankAccountId String
+  bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id])
+  date          DateTime
+  amountCad     Float
+  party         String      @default("CLIENT") // CLIENT|NBV|OTHER
+  source        String
+  fxNote        String?
+}
+
+// ───────────────────────── Immigration Tracking ─────────────────────────
+
+model EmployerPortalRecord {
+  id                  String    @id @default(cuid())
+  caseId              String    @unique
+  case                Case      @relation(fields: [caseId], references: [id])
+  enrolledAt          DateTime?
+  jobTitle            String?
+  noc                 String?
+  teer                Int?
+  salary              Float?
+  offerSubmittedAt    DateTime?
+  complianceFeePaidAt DateTime?
+  aNumber             String?
+}
+
+model WorkPermitRecord {
+  id              String    @id @default(cuid())
+  caseId          String    @unique
+  case            Case      @relation(fields: [caseId], references: [id])
+  submittedAt     DateTime?
+  applicationNo   String?
+  biometricsDoneAt DateTime?
+  medicalPassedAt DateTime?
+  decision        String? // APPROVED|REFUSED|WITHDRAWN
+  decisionAt      DateTime?
+  permitStart     DateTime?
+  permitEnd       DateTime?
+  refusalReasons  String?
+}
+
+// ───────────────────────── Document Repository ─────────────────────────
+
+model Folder {
+  id     String @id @default(cuid())
+  caseId String
+  case   Case   @relation(fields: [caseId], references: [id])
+  code   String // "01".."13"
+  name   String
+
+  documents DocumentItem[]
+}
+
+model DocumentItem {
+  id         String    @id @default(cuid())
+  caseId     String
+  case       Case      @relation(fields: [caseId], references: [id])
+  folderId   String?
+  folder     Folder?   @relation(fields: [folderId], references: [id])
+  docType    String
+  party      String    @default("CLIENT") // CLIENT|SPOUSE|CHILD|CORP|NBV
+  name       String
+  required   Boolean   @default(true)
+  status     String    @default("REQUESTED") // REQUESTED|RECEIVED|UNDER_REVIEW|APPROVED|SUBMITTED|EXPIRED
+  expiryDate DateTime?
+  locked     Boolean   @default(false)
+  unfiled    Boolean   @default(false)
+  sha256     String?
+  version    Int       @default(1)
+  storageKey String? // uploads/<uuid> on disk (S3 key in production)
+  size       Int?
+  mimeType   String?
+  uploadedBy String?
+  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime  @default(now())
+}
+
+// ───────────────────────── Billing & Trust ─────────────────────────
+
+model Invoice {
+  id        String    @id @default(cuid())
+  number    String    @unique
+  clientId  String
+  client    Client    @relation(fields: [clientId], references: [id])
+  caseId    String?
+  case      Case?     @relation(fields: [caseId], references: [id])
+  milestone String?
+  status    String    @default("DRAFT") // DRAFT|SENT|PARTIAL|PAID|OVERDUE|VOID
+  issueDate DateTime  @default(now())
+  dueDate   DateTime?
+  subtotal  Float
+  taxRate   Float     @default(0.05)
+  total     Float
+
+  lines    InvoiceLine[]
+  payments Payment[]
+}
+
+model InvoiceLine {
+  id        String  @id @default(cuid())
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+  kind      String  @default("FEE") // FEE|DISBURSEMENT
+  description String
+  amount    Float
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  invoiceId String
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+  date      DateTime @default(now())
+  amount    Float
+  method    String?
+  reference String?
+}
+
+model TrustTransaction {
+  id           String   @id @default(cuid())
+  clientId     String
+  client       Client   @relation(fields: [clientId], references: [id])
+  type         String // DEPOSIT|TRANSFER_TO_OPERATING|DISBURSEMENT|REFUND
+  amount       Float
+  date         DateTime @default(now())
+  method       String?
+  reference    String?
+  memo         String
+  enteredById  String
+  approvedById String?
+}
+
+// ───────────────────────── Expenses ─────────────────────────
+
+model ExpenseCategory {
+  id            String  @id @default(cuid())
+  name          String  @unique
+  gifiCode      String?
+  monthlyBudget Float?
+  itcRule       String  @default("FULL") // FULL|MEALS_50|NONE
+
+  expenses Expense[]
+}
+
+model Expense {
+  id         String          @id @default(cuid())
+  categoryId String
+  category   ExpenseCategory @relation(fields: [categoryId], references: [id])
+  vendor     String
+  date       DateTime
+  amount     Float
+  gstHstItc  Float           @default(0)
+  status     String          @default("CONFIRMED") // INBOX|CONFIRMED|PENDING_APPROVAL|APPROVED
+  source     String          @default("MANUAL")
+  campaign   String?
+  caseId     String?
+  billable   Boolean         @default(false)
+}
+
+// ───────────────────────── Tasks, Deadlines, Audit ─────────────────────────
+
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  caseId      String?
+  case        Case?     @relation(fields: [caseId], references: [id])
+  assigneeId  String?
+  assignee    User?     @relation(fields: [assigneeId], references: [id])
+  dueDate     DateTime?
+  priority    String    @default("MED") // HIGH|MED|LOW
+  status      String    @default("OPEN") // OPEN|DONE|CANCELLED
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model Deadline {
+  id        String   @id @default(cuid())
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id])
+  label     String
+  dueDate   DateTime
+  kind      String   @default("GENERAL") // EAPR|ADR|WP_EXPIRY|NOMINATION|GENERAL
+  satisfied Boolean  @default(false)
+}
+
+model ActivityLog {
+  id         Int      @id @default(autoincrement())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id])
+  actorName  String
+  entityType String
+  entityId   String?
+  action     String
+  detail     String?
+  at         DateTime @default(now())
+}
