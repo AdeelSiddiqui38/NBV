@@ -1,3 +1,7 @@
-uploads/
-.vercel
-.env*
+node_modules
+.next
+.env
+.env.local
+uploads
+prisma/dev.db
+*.tsbuildinfo
