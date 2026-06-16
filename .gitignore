@@ -5,3 +5,4 @@ node_modules
 uploads
 prisma/dev.db
 *.tsbuildinfo
+.env*
