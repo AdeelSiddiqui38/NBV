@@ -1,10 +1,15 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { fmtCad } from "@/lib/constants";
+import { AddClientButton, ClientCRUDButtons } from "@/components/ClientCRUD";
+import { getSession } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ClientsPage() {
+  const user = await getSession();
+  const isAdmin = user?.role === "ADMIN";
+
   const clients = await db.client.findMany({
     include: {
       familyMembers: true,
@@ -16,12 +21,16 @@ export default async function ClientsPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold text-navy mb-5">Clients & Family</h1>
+      <div className="flex items-center justify-between mb-5">
+        <h1 className="text-xl font-bold text-navy">Clients & Family</h1>
+        {isAdmin && <AddClientButton />}
+      </div>
       <div className="card">
         <table className="w-full">
           <thead>
             <tr>
               <th>Client #</th><th>Name</th><th>Country</th><th>Family</th><th>Open Cases</th><th>Engagement</th><th>Trust Balance</th>
+              {isAdmin && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -54,6 +63,11 @@ export default async function ClientsPage() {
                     {mode === "PARTNERSHIP_SERVICES" && <span className="pill pill-blue">C · Sweat equity</span>}
                   </td>
                   <td className="font-semibold">{fmtCad(trust)}</td>
+                  {isAdmin && (
+                    <td>
+                      <ClientCRUDButtons client={c} />
+                    </td>
+                  )}
                 </tr>
               );
             })}
