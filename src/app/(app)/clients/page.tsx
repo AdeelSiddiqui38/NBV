@@ -65,7 +65,19 @@ export default async function ClientsPage() {
                   <td className="font-semibold">{fmtCad(trust)}</td>
                   {isAdmin && (
                     <td>
-                      <ClientCRUDButtons client={c} />
+                      <ClientCRUDButtons client={{
+                        id: c.id,
+                        firstName: c.firstName,
+                        lastName: c.lastName,
+                        email: c.email,
+                        phone: c.phone,
+                        country: c.country,
+                        maritalStatus: c.maritalStatus,
+                        source: c.source,
+                        netWorthBand: c.netWorthBand,
+                        status: c.status,
+                        dateOfBirth: c.dateOfBirth?.toISOString() ?? null,
+                      }} />
                     </td>
                   )}
                 </tr>

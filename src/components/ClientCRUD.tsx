@@ -186,6 +186,16 @@ export function AddClientButton() {
     source: "",
     netWorthBand: "",
   });
+  const fields: Array<[keyof typeof form, string, boolean]> = [
+    ["firstName", "First Name", true],
+    ["lastName", "Last Name", true],
+    ["email", "Email", false],
+    ["phone", "Phone", false],
+    ["country", "Country", false],
+    ["maritalStatus", "Marital Status", false],
+    ["source", "Source / Referral", false],
+    ["netWorthBand", "Net Worth Band", false],
+  ];
 
   const handleCreate = async () => {
     if (!form.firstName.trim() || !form.lastName.trim()) {
@@ -231,23 +241,14 @@ export function AddClientButton() {
             <h2 className="text-lg font-bold text-navy mb-4">Add New Client</h2>
             {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
             <div className="grid grid-cols-2 gap-3">
-              {[
-                ["firstName", "First Name", true],
-                ["lastName", "Last Name", true],
-                ["email", "Email", false],
-                ["phone", "Phone", false],
-                ["country", "Country", false],
-                ["maritalStatus", "Marital Status", false],
-                ["source", "Source / Referral", false],
-                ["netWorthBand", "Net Worth Band", false],
-              ].map(([k, label, required]) => (
+              {fields.map(([k, label, required]) => (
                 <div key={k}>
                   <label className="block text-xs font-semibold text-slate-600 mb-1">
                     {label} {required ? "*" : ""}
                   </label>
                   <input
                     className="w-full border rounded px-2 py-1.5 text-sm"
-                    value={(form as Record<string, string>)[k]}
+                    value={form[k]}
                     onChange={(e) => setForm((p) => ({ ...p, [k]: e.target.value }))}
                   />
                 </div>

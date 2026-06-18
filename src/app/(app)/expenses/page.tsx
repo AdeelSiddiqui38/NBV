@@ -48,7 +48,10 @@ export default async function ExpensesPage() {
                   <td><span className={`pill text-xs ${e.status === "INBOX" ? "pill-amber" : "pill-green"}`}>{e.status}</span></td>
                   {isAccounting && (
                     <td>
-                      <ExpenseCRUDButtons expense={e} categories={categories} />
+                      <ExpenseCRUDButtons
+                        expense={{ ...e, date: e.date.toISOString() }}
+                        categories={categories}
+                      />
                     </td>
                   )}
                 </tr>

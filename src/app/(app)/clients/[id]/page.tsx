@@ -92,7 +92,7 @@ export default async function ClientDetail({ params }: { params: { id: string } 
           total: inv.total,
           payments: inv.payments.map(p => ({
             id: p.id, date: p.date.toISOString(),
-            amount: p.amount, method: p.method, reference: p.reference,
+            amount: p.amount, method: p.method ?? "", reference: p.reference,
           })),
         }))}
       />
