@@ -1,80 +1,60 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { db } from "@/lib/db";
+import { getSession, logActivity } from "@/lib/auth";
 
-type Params = { params: { id: string } };
+const schema = z.object({
+  relationship: z.enum(["SPOUSE", "COMMON_LAW", "CHILD", "PARENT", "OTHER"]),
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  dateOfBirth: z.string().min(8),
+  accompanying: z.boolean().default(true),
+  citizenship: z.string().optional(),
+  passportExpiry: z.string().optional(),
+  occupationOrGrade: z.string().optional(),
+  priorRefusals: z.boolean().default(false),
+});
 
-// ─── GET /api/clients/[id]/family ─────────────────────────────────────────────
+export async function POST(req: Request, { params }: { params: { id: string } }) {
+  const user = await getSession();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-export async function GET(_req: NextRequest, { params }: Params) {
-  const session = await getSession(_req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await req.json().catch(() => null);
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+  const d = parsed.data;
 
-  const members = await prisma.familyMember.findMany({
-    where: { clientId: params.id },
-    orderBy: { createdAt: "asc" },
-  });
+  const dob = new Date(d.dateOfBirth);
+  const age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 86400000));
 
-  return NextResponse.json({ members });
-}
+  // auto-rules
+  const dependentEligible = d.relationship === "CHILD" ? age < 22 : null;
+  const biometricsStatus = age >= 14 && age <= 79 ? "REQUIRED" : "EXEMPT";
 
-// ─── POST /api/clients/[id]/family ───────────────────────────────────────────
-
-export async function POST(req: NextRequest, { params }: Params) {
-  const session = await getSession(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const client = await prisma.client.findUnique({ where: { id: params.id } });
-  if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
-
-  const body = await req.json();
-  const { firstName, lastName, relationship, dateOfBirth, biometrics, medical, passportReady } = body;
-
-  if (!firstName?.trim() || !lastName?.trim()) {
-    return NextResponse.json({ error: "First and last name are required." }, { status: 422 });
-  }
-
-  // Age-based auto-rules
-  let bioRequired = Boolean(biometrics);
-  const dob = dateOfBirth ? new Date(dateOfBirth) : null;
-  const ageNow = dob
-    ? Math.floor((Date.now() - dob.getTime()) / (1000 * 60 * 60 * 24 * 365.25))
-    : null;
-
-  // Biometrics required for ages 14–79
-  if (ageNow !== null) {
-    bioRequired = ageNow >= 14 && ageNow <= 79;
-  }
-
-  const member = await prisma.familyMember.create({
+  const member = await db.familyMember.create({
     data: {
       clientId: params.id,
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      relationship: relationship ?? "OTHER",
-      dateOfBirth: dateOfBirth ?? null,
-      biometrics: bioRequired,
-      medical: Boolean(medical),
-      passportReady: Boolean(passportReady),
+      relationship: d.relationship,
+      firstName: d.firstName,
+      lastName: d.lastName,
+      dateOfBirth: dob,
+      accompanying: d.accompanying,
+      citizenship: d.citizenship || null,
+      passportExpiry: d.passportExpiry ? new Date(d.passportExpiry) : null,
+      occupationOrGrade: d.occupationOrGrade || null,
+      priorRefusals: d.priorRefusals,
+      dependentEligible,
+      biometricsStatus,
+      medicalStatus: d.accompanying ? "REQUIRED" : "NA",
     },
   });
 
-  // Update family size on the parent client
-  const count = await prisma.familyMember.count({ where: { clientId: params.id } });
-  await prisma.client.update({
-    where: { id: params.id },
-    data: { familySize: count + 1 }, // +1 for the principal applicant
-  });
+  const warnings: string[] = [];
+  if (d.relationship === "CHILD" && age >= 22)
+    warnings.push(`${d.firstName} is ${age} — over the dependent-child age limit (22). Verify eligibility (dependent-condition exception only).`);
+  if (d.relationship === "CHILD" && age >= 19)
+    warnings.push(`${d.firstName} is ${age} — approaching/near age-22 lock. Monitor timeline.`);
 
-  await prisma.auditLog.create({
-    data: {
-      userId: session.userId,
-      action: "added_family_member",
-      entity: "FamilyMember",
-      entityId: member.id,
-      detail: `Added ${member.firstName} ${member.lastName} (${member.relationship}) to client ${params.id}`,
-    },
-  });
-
-  return NextResponse.json({ member }, { status: 201 });
+  await logActivity(user, "family", "member_added", `${d.firstName} ${d.lastName} (${d.relationship}, ${age}y, ${d.accompanying ? "accompanying" : "not accompanying"})`, member.id);
+  return NextResponse.json({ ok: true, id: member.id, warnings });
 }

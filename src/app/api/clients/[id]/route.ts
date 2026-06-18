@@ -1,142 +1,74 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { db } from "@/lib/db";
+import { getSession, logActivity } from "@/lib/auth";
 
-type Params = { params: { id: string } };
+const schema = z.object({
+  firstName: z.string().min(1).optional(),
+  lastName: z.string().min(1).optional(),
+  email: z.string().email().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  country: z.string().optional().nullable(),
+  maritalStatus: z.string().optional().nullable(),
+  source: z.string().optional().nullable(),
+  netWorthBand: z.string().optional().nullable(),
+  status: z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]).optional(),
+  dateOfBirth: z.string().optional().nullable(),
+});
 
-// ─── GET /api/clients/[id] ────────────────────────────────────────────────────
+// PATCH /api/clients/[id] — update a client (admin only)
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+  const user = await getSession();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "ADMIN") return NextResponse.json({ error: "Admin only" }, { status: 403 });
 
-export async function GET(_req: NextRequest, { params }: Params) {
-  const session = await getSession(_req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const client = await db.client.findUnique({ where: { id: params.id } });
+  if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
 
-  const client = await prisma.client.findUnique({
+  const body = await req.json().catch(() => null);
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+
+  const d = parsed.data;
+
+  const updated = await db.client.update({
     where: { id: params.id },
-    include: {
-      familyMembers: true,
-      cases: { orderBy: { createdAt: "desc" } },
-      invoices: { orderBy: { createdAt: "desc" } },
-      trustTransactions: { orderBy: { createdAt: "desc" } },
-    },
-  });
-
-  if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  return NextResponse.json({ client });
-}
-
-// ─── PATCH /api/clients/[id] ──────────────────────────────────────────────────
-
-export async function PATCH(req: NextRequest, { params }: Params) {
-  const session = await getSession(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  // Case Managers can edit, but cannot change status to CLOSED (Admin/RCIC only)
-  const body = await req.json();
-  const { firstName, lastName, email, phone, status, rcicName, engagementMode, familySize } = body;
-
-  if (status === "CLOSED" && !["ADMIN", "RCIC"].includes(session.role)) {
-    return NextResponse.json({ error: "Only RCIC or Admin can close a client file." }, { status: 403 });
-  }
-
-  // Validate required
-  if (firstName !== undefined && !firstName.trim()) {
-    return NextResponse.json({ error: "firstName cannot be blank" }, { status: 422 });
-  }
-  if (lastName !== undefined && !lastName.trim()) {
-    return NextResponse.json({ error: "lastName cannot be blank" }, { status: 422 });
-  }
-
-  // Email-uniqueness check (exclude current record)
-  if (email) {
-    const conflict = await prisma.client.findFirst({
-      where: { email, NOT: { id: params.id } },
-    });
-    if (conflict) {
-      return NextResponse.json({ error: "Another client already uses this email." }, { status: 409 });
-    }
-  }
-
-  const updateData: Record<string, unknown> = {};
-  if (firstName !== undefined) updateData.firstName = firstName.trim();
-  if (lastName !== undefined) updateData.lastName = lastName.trim();
-  if (email !== undefined) updateData.email = email.trim().toLowerCase();
-  if (phone !== undefined) updateData.phone = phone.trim() || null;
-  if (status !== undefined) updateData.status = status;
-  if (rcicName !== undefined) updateData.rcicName = rcicName.trim() || null;
-  if (engagementMode !== undefined) updateData.engagementMode = engagementMode;
-  if (familySize !== undefined) updateData.familySize = Number(familySize);
-
-  const updated = await prisma.client.update({
-    where: { id: params.id },
-    data: updateData,
-  });
-
-  await prisma.auditLog.create({
     data: {
-      userId: session.userId,
-      action: "updated_client",
-      entity: "Client",
-      entityId: params.id,
-      detail: `Updated fields: ${Object.keys(updateData).join(", ")}`,
+      ...(d.firstName && { firstName: d.firstName }),
+      ...(d.lastName && { lastName: d.lastName }),
+      ...(d.email !== undefined && { email: d.email }),
+      ...(d.phone !== undefined && { phone: d.phone }),
+      ...(d.country !== undefined && { country: d.country }),
+      ...(d.maritalStatus !== undefined && { maritalStatus: d.maritalStatus }),
+      ...(d.source !== undefined && { source: d.source }),
+      ...(d.netWorthBand !== undefined && { netWorthBand: d.netWorthBand }),
+      ...(d.status && { status: d.status }),
+      ...(d.dateOfBirth !== undefined && { dateOfBirth: d.dateOfBirth ? new Date(d.dateOfBirth) : null }),
     },
   });
 
-  return NextResponse.json({ client: updated });
+  await logActivity(user, "client", "updated", `${updated.firstName} ${updated.lastName}`, updated.id);
+  return NextResponse.json(updated);
 }
 
-// ─── DELETE /api/clients/[id] ─────────────────────────────────────────────────
+// DELETE /api/clients/[id] — delete a client (admin only)
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  const user = await getSession();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "ADMIN") return NextResponse.json({ error: "Admin only" }, { status: 403 });
 
-export async function DELETE(req: NextRequest, { params }: Params) {
-  const session = await getSession(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const client = await db.client.findUnique({ where: { id: params.id } });
+  if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
 
-  if (!["ADMIN", "RCIC"].includes(session.role)) {
-    return NextResponse.json({ error: "Only RCIC or Admin may delete clients." }, { status: 403 });
-  }
-
-  // Safety guard: block if active cases exist
-  const activeCases = await prisma.case.count({
+  // Check if client has active cases
+  const activeCases = await db.case.count({
     where: { clientId: params.id, status: { not: "CLOSED" } },
   });
   if (activeCases > 0) {
-    return NextResponse.json(
-      { error: `Cannot delete — client has ${activeCases} active case(s). Close them first.` },
-      { status: 409 }
-    );
+    return NextResponse.json({ error: "Cannot delete client with active cases" }, { status: 400 });
   }
 
-  // Safety guard: block if outstanding invoices
-  const unpaidInvoices = await prisma.invoice.count({
-    where: { clientId: params.id, status: { in: ["ISSUED", "PARTIAL"] } },
-  });
-  if (unpaidInvoices > 0) {
-    return NextResponse.json(
-      { error: `Cannot delete — client has ${unpaidInvoices} unpaid invoice(s).` },
-      { status: 409 }
-    );
-  }
-
-  // Safety guard: positive trust balance
-  const trust = await prisma.trustTransaction.aggregate({
-    where: { clientId: params.id },
-    _sum: { amount: true },
-  });
-  // (simplified: if any trust funds remain, block)
-  const client = await prisma.client.findUnique({ where: { id: params.id } });
-  if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  await prisma.auditLog.create({
-    data: {
-      userId: session.userId,
-      action: "deleted_client",
-      entity: "Client",
-      entityId: params.id,
-      detail: `Deleted client ${client.clientRef} — ${client.firstName} ${client.lastName}`,
-    },
-  });
-
-  await prisma.client.delete({ where: { id: params.id } });
-
+  await db.client.delete({ where: { id: params.id } });
+  await logActivity(user, "client", "deleted", `${client.firstName} ${client.lastName}`, params.id);
   return NextResponse.json({ ok: true });
 }

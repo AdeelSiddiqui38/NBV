@@ -1,118 +1,79 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/session";
-import { generateClientRef } from "@/lib/refs";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { db } from "@/lib/db";
+import { getSession, logActivity } from "@/lib/auth";
 
-// ─── GET /api/clients ─────────────────────────────────────────────────────────
+const schema = z.object({
+  firstName: z.string().min(1, "First name required"),
+  lastName: z.string().min(1, "Last name required"),
+  email: z.string().email().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  country: z.string().optional().nullable(),
+  maritalStatus: z.string().optional().nullable(),
+  source: z.string().optional().nullable(),
+  netWorthBand: z.string().optional().nullable(),
+  status: z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]).default("ACTIVE"),
+  dateOfBirth: z.string().optional().nullable(),
+});
 
-export async function GET(req: NextRequest) {
-  const session = await getSession(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+// GET /api/clients — list all clients (admin only)
+export async function GET(req: Request) {
+  const user = await getSession();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "ADMIN") return NextResponse.json({ error: "Admin only" }, { status: 403 });
 
-  const clients = await prisma.client.findMany({
-    orderBy: { lastName: "asc" },
+  const clients = await db.client.findMany({
     include: {
-      cases: {
-        select: { id: true, caseRef: true, stage: true },
-        orderBy: { createdAt: "desc" },
-        take: 1,
-      },
-      trustTransactions: {
-        select: { amount: true, type: true },
-      },
-      invoices: {
-        where: { status: { in: ["ISSUED", "PARTIAL"] } },
-        select: { amountDue: true, amountPaid: true },
-      },
+      familyMembers: true,
+      cases: true,
+      trustTxns: true,
     },
+    orderBy: { createdAt: "desc" },
   });
 
-  const shaped = clients.map((c) => {
-    // Trust balance = sum of credits - sum of debits
-    const trustBalance = c.trustTransactions.reduce((sum, t) => {
-      return t.type === "DEPOSIT" || t.type === "TRANSFER_FROM_OPERATING"
-        ? sum + t.amount
-        : sum - t.amount;
-    }, 0);
-
-    // Outstanding A/R = sum of (amountDue - amountPaid) on open invoices
-    const outstandingAR = c.invoices.reduce(
-      (sum, inv) => sum + (inv.amountDue - inv.amountPaid),
-      0
-    );
-
-    return {
-      id: c.id,
-      clientRef: c.clientRef,
-      firstName: c.firstName,
-      lastName: c.lastName,
-      email: c.email,
-      phone: c.phone ?? "",
-      engagementMode: c.engagementMode,
-      status: c.status,
-      rcicName: c.rcicName ?? "",
-      familySize: c.familySize ?? 1,
-      createdAt: c.createdAt.toISOString(),
-      trustBalance,
-      outstandingAR,
-      cases: c.cases,
-    };
-  });
-
-  return NextResponse.json({ clients: shaped });
+  return NextResponse.json(clients);
 }
 
-// ─── POST /api/clients ────────────────────────────────────────────────────────
+// POST /api/clients — create a new client (admin only)
+export async function POST(req: Request) {
+  const user = await getSession();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (user.role !== "ADMIN") return NextResponse.json({ error: "Admin only" }, { status: 403 });
 
-export async function POST(req: NextRequest) {
-  const session = await getSession(req);
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await req.json().catch(() => null);
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
 
-  // Only RCIC / Admin may create clients directly
-  if (!["ADMIN", "RCIC"].includes(session.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const d = parsed.data;
 
-  const body = await req.json();
-  const { firstName, lastName, email, phone, engagementMode, status, rcicName, familySize } = body;
+  // Generate unique client number (e.g., C-2026-001)
+  const year = new Date().getFullYear();
+  const count = await db.client.count({
+    where: {
+      createdAt: {
+        gte: new Date(`${year}-01-01`),
+        lt: new Date(`${year + 1}-01-01`),
+      },
+    },
+  });
+  const clientNumber = `C-${year}-${String(count + 1).padStart(3, "0")}`;
 
-  if (!firstName?.trim() || !lastName?.trim() || !email?.trim()) {
-    return NextResponse.json({ error: "firstName, lastName and email are required" }, { status: 422 });
-  }
-
-  // Duplicate e-mail check
-  const existing = await prisma.client.findFirst({ where: { email } });
-  if (existing) {
-    return NextResponse.json({ error: "A client with this email already exists" }, { status: 409 });
-  }
-
-  const clientRef = await generateClientRef();
-
-  const client = await prisma.client.create({
+  const client = await db.client.create({
     data: {
-      clientRef,
-      firstName: firstName.trim(),
-      lastName: lastName.trim(),
-      email: email.trim().toLowerCase(),
-      phone: phone?.trim() ?? null,
-      engagementMode: engagementMode ?? "A",
-      status: status ?? "ACTIVE",
-      rcicName: rcicName?.trim() ?? null,
-      familySize: familySize ?? 1,
-      createdById: session.userId,
+      clientNumber,
+      firstName: d.firstName,
+      lastName: d.lastName,
+      email: d.email || null,
+      phone: d.phone || null,
+      country: d.country || null,
+      maritalStatus: d.maritalStatus || null,
+      source: d.source || null,
+      netWorthBand: d.netWorthBand || null,
+      status: d.status,
+      dateOfBirth: d.dateOfBirth ? new Date(d.dateOfBirth) : null,
     },
   });
 
-  // Audit
-  await prisma.auditLog.create({
-    data: {
-      userId: session.userId,
-      action: "created_client",
-      entity: "Client",
-      entityId: client.id,
-      detail: `Created client ${client.clientRef} — ${client.firstName} ${client.lastName}`,
-    },
-  });
-
-  return NextResponse.json({ client }, { status: 201 });
+  await logActivity(user, "client", "created", `${client.firstName} ${client.lastName} (${clientNumber})`, client.id);
+  return NextResponse.json(client, { status: 201 });
 }
