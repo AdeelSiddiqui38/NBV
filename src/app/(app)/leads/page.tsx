@@ -37,9 +37,9 @@ export default async function LeadsPage() {
         Owner approval · <b>⛔ no onboarding without an AGREED quote</b>.
       </div>
 
-      <div className="card mb-5">
+      <div className="card mb-5 overflow-x-auto">
         <h3 className="text-sm font-bold text-navy mb-3">💬 Fee negotiations in progress</h3>
-        <table className="w-full">
+        <table className="w-full min-w-[720px]">
           <thead>
             <tr><th>Lead</th><th>Quote</th><th>List</th><th>Adjustments</th><th>Current offer</th><th>Status</th></tr>
           </thead>
@@ -71,7 +71,7 @@ export default async function LeadsPage() {
         </table>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 items-start">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 items-start">
         {STAGE_COLS.map(([key, label]) => (
           <div key={key} className="bg-slate-200/60 rounded-xl p-2.5">
             <div className="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-2 px-1">

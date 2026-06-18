@@ -33,9 +33,9 @@ export default async function ExpensesPage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="card">
+        <div className="card overflow-x-auto">
           <h3 className="text-sm font-bold text-navy mb-3">Recent expenses</h3>
-          <table className="w-full text-sm">
+          <table className="w-full text-sm min-w-[640px]">
             <thead><tr><th>Date</th><th>Vendor</th><th>Category</th><th>Amount</th><th>ITC</th><th>Status</th>{isAccounting && <th>Actions</th>}</tr></thead>
             <tbody>
               {expenses.map((e) => (

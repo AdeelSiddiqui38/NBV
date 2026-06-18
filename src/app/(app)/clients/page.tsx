@@ -25,8 +25,8 @@ export default async function ClientsPage() {
         <h1 className="text-xl font-bold text-navy">Clients & Family</h1>
         {isAdmin && <AddClientButton />}
       </div>
-      <div className="card">
-        <table className="w-full">
+      <div className="card overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead>
             <tr>
               <th>Client #</th><th>Name</th><th>Country</th><th>Family</th><th>Open Cases</th><th>Engagement</th><th>Trust Balance</th>

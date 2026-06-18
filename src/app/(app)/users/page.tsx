@@ -23,9 +23,9 @@ export default async function UsersPage() {
         <MfaEnrol mfaEnabled={!!meRow?.mfaEnabled} mandatory={["ADMIN","RCIC"].includes(me!.role)} />
       </div>
       {me!.role === "ADMIN" && <div className="mb-4"><InviteUser /></div>}
-      <div className="card mb-5">
+      <div className="card mb-5 overflow-x-auto">
         <h3 className="text-sm font-bold text-navy mb-3">Team accounts</h3>
-        <table className="w-full text-sm">
+        <table className="w-full text-sm min-w-[760px]">
           <thead>
             <tr className="text-left text-slate-500 border-b text-xs">
               <th className="pb-2 pr-3">User</th>
@@ -62,9 +62,9 @@ export default async function UsersPage() {
           </tbody>
         </table>
       </div>
-      <div className="card">
+      <div className="card overflow-x-auto">
         <h3 className="text-sm font-bold text-navy mb-3">Recent login events</h3>
-        <table className="w-full text-sm">
+        <table className="w-full text-sm min-w-[520px]">
           <thead>
             <tr className="text-left text-slate-500 border-b text-xs">
               <th className="pb-2 pr-3">When</th><th className="pb-2 pr-3">Email</th><th className="pb-2 pr-3">Result</th><th className="pb-2">IP</th>

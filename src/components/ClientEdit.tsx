@@ -45,7 +45,7 @@ export function ClientEditButton({ client }: { client: Client }) {
       <button onClick={() => setOpen(true)} className="btn text-xs px-3 py-1.5">✏️ Edit Client</button>
 
       {open && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-bold text-navy mb-4">Edit Client — {client.firstName} {client.lastName}</h2>
             {error && <p className="text-red-500 text-sm mb-3">{error}</p>}

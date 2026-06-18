@@ -97,9 +97,9 @@ export default async function Dashboard() {
         </div>
       </div>
 
-      <div className="card mt-4">
+      <div className="card mt-4 overflow-x-auto">
         <h3 className="text-sm font-bold text-navy mb-3">🗂 Open Cases</h3>
-        <table className="w-full">
+        <table className="w-full min-w-[640px]">
           <thead>
             <tr>
               <th>File #</th><th>Client</th><th>Type</th><th>Stage</th><th>Opened</th>

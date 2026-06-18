@@ -35,9 +35,9 @@ export default async function BillingPage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <div className="card">
+        <div className="card overflow-x-auto">
           <h3 className="text-sm font-bold text-navy mb-3">Invoices</h3>
-          <table className="w-full">
+          <table className="w-full min-w-[560px]">
             <thead><tr><th>#</th><th>Client · milestone</th><th>Issued</th><th>Total</th><th>Status</th></tr></thead>
             <tbody>
               {invoices.map((inv) => (

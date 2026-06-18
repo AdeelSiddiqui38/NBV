@@ -96,7 +96,8 @@ export default async function CaseDocuments({ params }: { params: { id: string }
           {f.documents.length === 0 ? (
             <div className="text-xs text-slate-400">Empty.</div>
           ) : (
-            <table className="w-full">
+            <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px]">
               <thead><tr><th>Document</th><th>Party</th><th>Status</th><th>Ver</th><th>Expiry</th><th>Integrity</th><th>Actions</th></tr></thead>
               <tbody>
                 {f.documents.map((d) => (
@@ -119,6 +120,7 @@ export default async function CaseDocuments({ params }: { params: { id: string }
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       ))}

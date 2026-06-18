@@ -81,7 +81,7 @@ export function AddExpenseButton({ categories }: { categories: Category[] }) {
       </button>
 
       {open && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-bold text-navy mb-4">Add New Expense</h2>
             {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
@@ -264,7 +264,7 @@ export function ExpenseCRUDButtons({ expense, categories }: { expense: Expense; 
 
       {/* Edit Modal */}
       {editOpen && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-lg font-bold text-navy mb-4">Edit Expense</h2>
             {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
@@ -373,7 +373,7 @@ export function ExpenseCRUDButtons({ expense, categories }: { expense: Expense; 
 
       {/* Delete Confirmation */}
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm">
             <h2 className="text-lg font-bold text-navy mb-4">Delete Expense?</h2>
             <p className="text-sm text-slate-600 mb-4">

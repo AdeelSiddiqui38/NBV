@@ -11,8 +11,8 @@ export default async function AuditPage() {
       <div className="text-[13px] text-slate-500 mb-5">
         Append-only activity log — every entity, every user, every action. The CICC "who did what, when" backbone.
       </div>
-      <div className="card">
-        <table className="w-full">
+      <div className="card overflow-x-auto">
+        <table className="w-full min-w-[640px]">
           <thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Entity</th><th>Detail</th></tr></thead>
           <tbody>
             {logs.map((l) => (

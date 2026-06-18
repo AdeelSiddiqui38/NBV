@@ -87,7 +87,7 @@ export function UserActions({ user, myId }: { user: User; myId: string }) {
       </div>
 
       {showEdit && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md">
             <h2 className="text-lg font-bold text-navy mb-4">Edit User — {user.name}</h2>
             {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
@@ -119,7 +119,7 @@ export function UserActions({ user, myId }: { user: User; myId: string }) {
       )}
 
       {showDelete && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm text-center">
             <h2 className="text-lg font-bold text-red-600 mb-2">Delete User?</h2>
             <p className="text-sm text-slate-500 mb-1">Permanently deleting:</p>

@@ -20,8 +20,8 @@ export default async function CasesPage() {
   return (
     <div>
       <h1 className="text-xl font-bold text-navy mb-5">C11 Cases — All Files</h1>
-      <div className="card">
-        <table className="w-full">
+      <div className="card overflow-x-auto">
+        <table className="w-full min-w-[900px]">
           <thead>
             <tr><th>File #</th><th>Client</th><th>Type</th><th>Mode</th><th>Stage</th><th>Progress</th><th>RCIC</th><th>Next deadline</th></tr>
           </thead>
