@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     await db.authToken.create({
       data: { userId: user.id, tokenHash: hash, purpose: "PASSWORD_RESET", expiresAt: new Date(Date.now() + 3600_000) },
     });
-    const base = process.env.APP_URL || "http://localhost:3000";
+    const base = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
     await sendMail(user.email, "NBV CRM password reset", `Reset link (valid 1 hour, single use):\n${base}/reset/${raw}\nIf you didn't request this, ignore it.`);
   }
   return NextResponse.json({ ok: true });

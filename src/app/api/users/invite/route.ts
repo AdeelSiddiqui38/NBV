@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     data: { userId: user.id, tokenHash: hash, purpose: "INVITE", expiresAt: new Date(Date.now() + 7 * 86400000) },
   });
 
-  const base = process.env.APP_URL || "http://localhost:3000";
+  const base = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "http://localhost:3000";
   await sendMail(
     d.email,
     "You're invited to NBV CRM",
