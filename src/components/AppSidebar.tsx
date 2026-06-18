@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import LogoutButton from "@/components/LogoutButton";
@@ -23,8 +24,10 @@ export default function AppSidebar({ user }: { user: { name: string; role: strin
 
   return (
     <>
-      <header className="lg:hidden flex items-center justify-between bg-navy text-white px-4 py-3 sticky top-0 z-30">
-        <div className="font-extrabold text-sm">⛰ NEXT BRIDGE</div>
+      <header className="lg:hidden flex items-center justify-between bg-navy text-white px-4 py-2.5 sticky top-0 z-30">
+        <div className="bg-white rounded-lg px-2.5 py-1.5 inline-block">
+          <Image src="/nbv-logo.png" alt="Next Bridge Ventures" width={120} height={23} priority />
+        </div>
         <button
           aria-label="Toggle menu"
           onClick={() => setOpen((o) => !o)}
@@ -47,8 +50,10 @@ export default function AppSidebar({ user }: { user: { name: string; role: strin
         }`}
       >
         <div className="px-4 py-5 border-b border-white/10">
-          <div className="text-white font-extrabold">⛰ NEXT BRIDGE</div>
-          <div className="text-[10px] text-slate-400 tracking-wide">VENTURES — C11 CRM</div>
+          <div className="bg-white rounded-lg px-3 py-2 inline-block">
+            <Image src="/nbv-logo.png" alt="Next Bridge Ventures" width={150} height={28} priority />
+          </div>
+          <div className="text-[10px] text-slate-400 tracking-wide mt-1.5">C11 IMMIGRATION CRM</div>
         </div>
         <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
           {NAV.map((n) => (

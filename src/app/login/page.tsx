@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -39,8 +40,10 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-navy">
       <div className="w-full max-w-md px-6">
         <div className="text-center mb-8">
-          <div className="text-2xl font-extrabold text-white tracking-wide">⛰ NEXT BRIDGE VENTURES</div>
-          <div className="text-sm text-slate-400 mt-1">Immigration CRM — staff sign-in</div>
+          <div className="inline-block bg-white rounded-xl px-5 py-3">
+            <Image src="/nbv-logo.png" alt="Next Bridge Ventures" width={259} height={49} priority />
+          </div>
+          <div className="text-sm text-slate-400 mt-3">Immigration CRM — staff sign-in</div>
         </div>
         <form onSubmit={submit} className="bg-white rounded-2xl p-8 shadow-xl">
           <label className="label">Login ID (email)</label>
