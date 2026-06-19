@@ -60,15 +60,30 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   const client = await db.client.findUnique({ where: { id: params.id } });
   if (!client) return NextResponse.json({ error: "Client not found" }, { status: 404 });
 
-  // Check if client has active cases
-  const activeCases = await db.case.count({
-    where: { clientId: params.id, status: { not: "CLOSED" } },
-  });
-  if (activeCases > 0) {
-    return NextResponse.json({ error: "Cannot delete client with active cases" }, { status: 400 });
+  // A client with any case (open or closed) carries real case history — archive instead of deleting.
+  const caseCount = await db.case.count({ where: { clientId: params.id } });
+  if (caseCount > 0) {
+    return NextResponse.json(
+      { error: "This client has case history and can't be permanently deleted. Set status to Archived instead — it hides them from active lists while preserving records." },
+      { status: 400 }
+    );
   }
 
-  await db.client.delete({ where: { id: params.id } });
+  try {
+    await db.$transaction([
+      db.familyMember.deleteMany({ where: { clientId: params.id } }),
+      db.contactLogEntry.deleteMany({ where: { clientId: params.id } }),
+      db.trustTransaction.deleteMany({ where: { clientId: params.id } }),
+      db.payment.deleteMany({ where: { invoice: { clientId: params.id } } }),
+      db.invoiceLine.deleteMany({ where: { invoice: { clientId: params.id } } }),
+      db.invoice.deleteMany({ where: { clientId: params.id } }),
+      db.lead.updateMany({ where: { clientId: params.id }, data: { clientId: null } }),
+      db.client.delete({ where: { id: params.id } }),
+    ]);
+  } catch {
+    return NextResponse.json({ error: "This client is still referenced by other records and can't be deleted." }, { status: 409 });
+  }
+
   await logActivity(user, "client", "deleted", `${client.firstName} ${client.lastName}`, params.id);
   return NextResponse.json({ ok: true });
 }

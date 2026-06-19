@@ -64,7 +64,6 @@ export function ClientCRUDButtons({ client }: { client: Client }) {
       router.refresh();
     } else {
       setError(data.error || "Delete failed");
-      setDeleteConfirm(false);
     }
   };
 
