@@ -43,7 +43,14 @@ export async function DELETE(_req: Request, { params }: { params: { id: string }
   await db.authToken.deleteMany({ where: { userId: params.id } });
   await db.loginEvent.deleteMany({ where: { email: user.email } });
 
-  await db.user.delete({ where: { id: params.id } });
+  try {
+    await db.user.delete({ where: { id: params.id } });
+  } catch {
+    return NextResponse.json(
+      { error: `${user.name} is referenced on existing cases, tasks, or financial records and can't be deleted (this protects the audit trail). Suspend the account instead — open Edit, set Status to Suspended, and Save.` },
+      { status: 409 }
+    );
+  }
   await logActivity(me, "user", "deleted", `${user.name} <${user.email}>`, me.id);
   return NextResponse.json({ ok: true });
 }

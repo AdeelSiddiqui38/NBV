@@ -12,14 +12,9 @@ npm run setup     # prisma generate + db push + seed demo data
 npm run dev       # http://localhost:3000
 ```
 
-**Demo logins**
-| Login ID | Password | Role |
-|---|---|---|
-| amrit@nextbridgeventures.ca | `NbvAdmin#2026` | Admin + RCIC |
-| noor@nextbridgeventures.ca | `NbvStaff#2026` | RCIC |
-| jodi@nextbridgeventures.ca | `NbvStaff#2026` | Case Manager |
-| sara.k@contractor.com | `NbvStaff#2026` | Plan Writer |
-| books@nbvaccounting.ca | `NbvStaff#2026` | Accountant |
+`npm run setup` seeds demo accounts for local development only. Their credentials are
+defined in `prisma/seed.ts` — do not record real passwords here, and rotate or delete
+any seeded accounts before using a database for production data.
 
 ## What's implemented (and verified by smoke tests)
 

@@ -86,9 +86,6 @@ export default function LoginPage() {
             Sessions expire after 8h · 5 failed attempts locks the account · all sign-ins audit-logged
           </div>
         </form>
-        <div className="text-center text-xs text-slate-500 mt-4">
-          Demo: amrit@nextbridgeventures.ca / NbvAdmin#2026
-        </div>
       </div>
     </div>
   );
