@@ -11,8 +11,13 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const secret = authenticator.generateSecret();
-  // stash pending secret encrypted on the user row (not yet enabled)
-  await db.user.update({ where: { id: user.id }, data: { mfaSecretEnc: encryptField(secret) } });
+  try {
+    // stash pending secret encrypted on the user row (not yet enabled)
+    await db.user.update({ where: { id: user.id }, data: { mfaSecretEnc: encryptField(secret) } });
+  } catch (e) {
+    console.error("MFA enrolment failed to encrypt/store secret:", e);
+    return NextResponse.json({ error: "Server is misconfigured for MFA (encryption key). Contact your administrator." }, { status: 500 });
+  }
   const uri = authenticator.keyuri(user.email, "NBV CRM", secret);
   return NextResponse.json({ secret, uri });
 }

@@ -146,11 +146,15 @@ export function MfaEnrol({ mfaEnabled, mandatory }: { mfaEnabled: boolean; manda
 
   if (!setup)
     return (
-      <button className={`btn text-xs ${mandatory ? "" : "btn-ghost"}`} onClick={async () => {
-        const res = await fetch("/api/auth/mfa");
-        const d = await res.json();
-        if (res.ok) setSetup(d);
-      }}>{mandatory ? "⚠ Enrol MFA now (mandatory for your role)" : "Enable MFA (recommended)"}</button>
+      <div>
+        <button className={`btn text-xs ${mandatory ? "" : "btn-ghost"}`} onClick={async () => {
+          setError("");
+          const res = await fetch("/api/auth/mfa");
+          const d = await res.json().catch(() => ({}));
+          if (res.ok) setSetup(d); else setError(d.error ?? "Could not start MFA enrolment. Please try again.");
+        }}>{mandatory ? "⚠ Enrol MFA now (mandatory for your role)" : "Enable MFA (recommended)"}</button>
+        {error && <div className="text-red-600 font-semibold mt-2 text-xs">{error}</div>}
+      </div>
     );
 
   return (
