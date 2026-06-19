@@ -35,6 +35,13 @@ export default async function LeadDetail({ params }: { params: { id: string } })
         {lead.scorecardNote && <> · <i>{lead.scorecardNote}</i></>}
       </div>
 
+      {lead.notes && (
+        <div className="card mb-5 whitespace-pre-wrap text-sm text-slate-700">
+          <h3 className="text-sm font-bold text-navy mb-2">📝 Application details</h3>
+          {lead.notes}
+        </div>
+      )}
+
       {lead.stage === "WON" && lead.clientId ? (
         <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm text-emerald-800 mb-5">
           ✅ Converted to client.{" "}

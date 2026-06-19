@@ -83,6 +83,7 @@ model Lead {
   city          String?
   province      String?
   source        String?
+  notes         String? // free-text message from an inbound application form, if any
   capitalBand   String?
   scorecard     String? // GREEN | AMBER | RED
   scorecardNote String?
