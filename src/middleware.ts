@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 
 const SECRET = new TextEncoder().encode(process.env.AUTH_SECRET || "dev-secret");
-const PUBLIC = ["/login", "/invite/", "/reset/", "/api/auth/login", "/api/auth/reset-request", "/api/auth/reset-confirm", "/api/users/accept-invite", "/api/jobs/scan"];
+const PUBLIC = ["/login", "/invite/", "/reset/", "/api/auth/login", "/api/auth/reset-request", "/api/auth/reset-confirm", "/api/users/accept-invite", "/api/jobs/scan", "/api/public/"];
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
