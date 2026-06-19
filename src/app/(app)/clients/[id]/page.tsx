@@ -15,7 +15,7 @@ export default async function ClientDetail({ params }: { params: { id: string } 
       familyMembers: { orderBy: { dateOfBirth: "asc" } },
       cases: true,
       trustTxns: { orderBy: { date: "desc" } },
-      invoices: { include: { payments: true }, orderBy: { issueDate: "asc" } },
+      invoices: { include: { payments: true, lines: true }, orderBy: { issueDate: "asc" } },
       contactLogs: { orderBy: { createdAt: "desc" }, take: 10 },
     },
   });
@@ -89,7 +89,8 @@ export default async function ClientDetail({ params }: { params: { id: string } 
           id: inv.id, number: inv.number, milestone: inv.milestone ?? "",
           status: inv.status, issueDate: inv.issueDate.toISOString(),
           dueDate: inv.dueDate?.toISOString() ?? null,
-          total: inv.total,
+          total: inv.total, taxRate: inv.taxRate,
+          lines: inv.lines.map(l => ({ id: l.id, kind: l.kind, description: l.description, amount: l.amount })),
           payments: inv.payments.map(p => ({
             id: p.id, date: p.date.toISOString(),
             amount: p.amount, method: p.method ?? "", reference: p.reference,

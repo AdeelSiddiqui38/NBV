@@ -9,9 +9,12 @@ type Client = {
   dateOfBirth?: string | null; passportExpiry?: string | null;
 };
 
+type InvoiceLine = { id: string; kind: string; description: string; amount: number };
+
 type Invoice = {
   id: string; number: string; milestone: string; status: string;
-  issueDate: string; dueDate?: string | null; total: number;
+  issueDate: string; dueDate?: string | null; total: number; taxRate: number;
+  lines: InvoiceLine[];
   payments: { id: string; date: string; amount: number; method: string; reference?: string | null }[];
 };
 
@@ -93,6 +96,52 @@ export function PaymentSchedule({ invoices, clientId }: { invoices: Invoice[]; c
   const [pay, setPay] = useState({ amount: "", method: "e-transfer", reference: "", date: new Date().toISOString().split("T")[0] });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [editingInv, setEditingInv] = useState<Invoice | null>(null);
+  const [editLines, setEditLines] = useState<InvoiceLine[]>([]);
+  const [editTaxRate, setEditTaxRate] = useState(0.05);
+  const [editDueDate, setEditDueDate] = useState("");
+  const [editError, setEditError] = useState("");
+  const [editBusy, setEditBusy] = useState(false);
+  const [deletingInv, setDeletingInv] = useState<Invoice | null>(null);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  const openEdit = (inv: Invoice) => {
+    setEditingInv(inv);
+    setEditLines(inv.lines.length > 0 ? inv.lines.map(l => ({ ...l })) : [{ id: "new", kind: "FEE", description: inv.milestone || "Fee", amount: inv.total }]);
+    setEditTaxRate(inv.taxRate);
+    setEditDueDate(inv.dueDate ? inv.dueDate.split("T")[0] : "");
+    setEditError("");
+  };
+
+  const editSubtotal = editLines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+  const editFeePortion = editLines.filter(l => l.kind === "FEE").reduce((s, l) => s + (Number(l.amount) || 0), 0);
+  const editTotal = Math.round((editSubtotal + editFeePortion * editTaxRate) * 100) / 100;
+
+  const saveEdit = async () => {
+    if (!editingInv) return;
+    setEditBusy(true); setEditError("");
+    const r = await fetch(`/api/invoices/${editingInv.id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lines: editLines.map(l => ({ kind: l.kind, description: l.description, amount: Number(l.amount) || 0 })),
+        taxRate: editTaxRate,
+        dueDate: editDueDate || null,
+      }),
+    });
+    const d = await r.json().catch(() => ({}));
+    setEditBusy(false);
+    if (r.ok) { setEditingInv(null); router.refresh(); } else setEditError(d.error ?? "Failed");
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingInv) return;
+    setDeleteBusy(true); setDeleteError("");
+    const r = await fetch(`/api/invoices/${deletingInv.id}`, { method: "DELETE" });
+    const d = await r.json().catch(() => ({}));
+    setDeleteBusy(false);
+    if (r.ok) { setDeletingInv(null); router.refresh(); } else setDeleteError(d.error ?? "Delete failed");
+  };
 
   const fmtCad = (n: number) => n.toLocaleString("en-CA", { style: "currency", currency: "CAD" });
 
@@ -141,6 +190,8 @@ export function PaymentSchedule({ invoices, clientId }: { invoices: Invoice[]; c
               <div className="flex items-center gap-2">
                 <span className={`pill ${statusColor[inv.status] ?? "pill-gray"}`}>{inv.status}</span>
                 <span className="text-sm font-bold">{fmtCad(inv.total)}</span>
+                <button onClick={() => openEdit(inv)} className="text-xs text-blue-600 hover:underline font-semibold">✏️ Edit</button>
+                <button onClick={() => { setDeletingInv(inv); setDeleteError(""); }} className="text-xs text-red-500 hover:underline font-semibold">🗑️ Delete</button>
               </div>
             </div>
 
@@ -217,6 +268,83 @@ export function PaymentSchedule({ invoices, clientId }: { invoices: Invoice[]; c
           </div>
         );
       })}
+
+      {editingInv && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-navy mb-1">Edit Invoice — {editingInv.number}</h2>
+            <p className="text-xs text-slate-500 mb-4">Adjust the line items below — totals recalculate automatically.</p>
+            {editError && <p className="text-red-500 text-sm mb-3">{editError}</p>}
+
+            {editLines.map((l, i) => (
+              <div key={i} className="grid grid-cols-[90px_1fr_110px_28px] gap-2 mb-2 items-center">
+                <select className="border rounded px-2 py-1.5 text-xs" value={l.kind}
+                  onChange={e => setEditLines(ls => ls.map((x, j) => j === i ? { ...x, kind: e.target.value } : x))}>
+                  <option value="FEE">Fee</option>
+                  <option value="DISBURSEMENT">Disbursement</option>
+                </select>
+                <input className="border rounded px-2 py-1.5 text-sm" value={l.description}
+                  onChange={e => setEditLines(ls => ls.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} />
+                <input className="border rounded px-2 py-1.5 text-sm text-right" type="number" value={l.amount}
+                  onChange={e => setEditLines(ls => ls.map((x, j) => j === i ? { ...x, amount: e.target.value as unknown as number } : x))} />
+                <button onClick={() => setEditLines(ls => ls.filter((_, j) => j !== i))} disabled={editLines.length <= 1}
+                  className="text-red-500 disabled:opacity-30 text-sm">✕</button>
+              </div>
+            ))}
+            <button onClick={() => setEditLines(ls => [...ls, { id: "new", kind: "FEE", description: "", amount: 0 }])}
+              className="text-xs text-blue-600 hover:underline font-semibold mb-4">+ Add line</button>
+
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Tax rate (GST/HST)</label>
+                <input className="w-full border rounded px-2 py-1.5 text-sm" type="number" step="0.01" value={editTaxRate}
+                  onChange={e => setEditTaxRate(parseFloat(e.target.value) || 0)} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Due date</label>
+                <input className="w-full border rounded px-2 py-1.5 text-sm" type="date" value={editDueDate}
+                  onChange={e => setEditDueDate(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="flex justify-between text-sm mb-4 bg-slate-50 rounded p-3">
+              <span className="font-semibold">New total</span>
+              <span className="font-bold text-navy">{fmtCad(editTotal)}</span>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setEditingInv(null)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded">Cancel</button>
+              <button onClick={saveEdit} disabled={editBusy} className="px-4 py-2 text-sm bg-navy text-white rounded font-semibold disabled:opacity-50">
+                {editBusy ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deletingInv && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm text-center">
+            <h2 className="text-lg font-bold text-red-600 mb-2">Delete Invoice?</h2>
+            <p className="text-sm text-slate-600 mb-1">
+              Permanently deleting <b>{deletingInv.number}</b> ({fmtCad(deletingInv.total)}).
+            </p>
+            {deletingInv.payments.length > 0 && (
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2 mt-2 mb-2">
+                ⚠ This invoice has {deletingInv.payments.length} recorded payment(s) totalling{" "}
+                {fmtCad(deletingInv.payments.reduce((s, p) => s + p.amount, 0))} — those will be deleted too.
+              </p>
+            )}
+            {deleteError && <p className="text-red-500 text-sm mb-2">{deleteError}</p>}
+            <div className="flex justify-center gap-3 mt-3">
+              <button onClick={() => setDeletingInv(null)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded">Cancel</button>
+              <button onClick={confirmDelete} disabled={deleteBusy} className="px-4 py-2 text-sm bg-red-600 text-white rounded font-semibold disabled:opacity-50">
+                {deleteBusy ? "Deleting…" : "Yes, Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
