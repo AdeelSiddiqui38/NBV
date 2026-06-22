@@ -286,6 +286,9 @@ model CorporateEntity {
   craAccounts    String? // "RC0001,RP0001,RT0001"
   stage          String    @default("NAME_SEARCH") // NAME_SEARCH|ARTICLES_FILED|INCORPORATED|BN_OBTAINED|COMPLETE
   annualReturnDue DateTime?
+  incorporationData   Json?     // full Alberta Articles of Incorporation form (name, directors, shares, etc.)
+  incorporationSubmittedAt DateTime?
+  incorporationSubmittedTo String?
 
   shareholders Shareholder[]
   bankAccounts BankAccount[]

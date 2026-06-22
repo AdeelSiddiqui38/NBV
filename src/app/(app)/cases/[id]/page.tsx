@@ -130,7 +130,10 @@ export default async function CaseDetail({ params }: { params: { id: string } })
           ) : <div className="text-xs text-slate-400">Not started.</div>}
         </div>
         <div className="card bg-slate-50">
-          <h4 className="text-xs font-bold text-navy mb-2">🏢 Track B — Incorporation</h4>
+          <h4 className="text-xs font-bold text-navy mb-2 flex items-center justify-between">
+            <span>🏢 Track B — Incorporation</span>
+            <Link href={`/cases/${c.id}/incorporation`} className="text-teal underline text-[11px] font-normal">Alberta form →</Link>
+          </h4>
           {c.corp ? (
             <div className="text-xs space-y-1">
               <div className="font-semibold">{c.corp.legalName ?? "(name pending)"}</div>
