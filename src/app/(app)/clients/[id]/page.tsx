@@ -107,6 +107,7 @@ export default async function ClientDetail({ params }: { params: { id: string } 
               <tr className="text-xs text-slate-500 border-b">
                 <th className="pb-2 pr-3 text-left">Member</th><th className="pb-2 pr-3 text-left">Relationship</th>
                 <th className="pb-2 pr-3 text-left">DOB</th><th className="pb-2 pr-3 text-left">Passport expiry</th>
+                <th className="pb-2 pr-3 text-left">Passport</th>
                 <th className="pb-2 pr-3 text-left">Biometrics</th><th className="pb-2 pr-3 text-left">Medical</th><th className="pb-2 text-left">Docs</th>
               </tr>
             </thead>
@@ -116,6 +117,7 @@ export default async function ClientDetail({ params }: { params: { id: string } 
                 <td className="py-2 pr-3"><span className="pill pill-blue">Principal</span></td>
                 <td className="py-2 pr-3">{fmtDate(client.dateOfBirth)}</td>
                 <td className="py-2 pr-3">{fmtDate(client.passportExpiry)}</td>
+                <td className="py-2 pr-3">—</td>
                 <td className="py-2 pr-3">—</td><td className="py-2 pr-3">—</td><td className="py-2">—</td>
               </tr>
               {client.familyMembers.map((m) => (
@@ -127,6 +129,18 @@ export default async function ClientDetail({ params }: { params: { id: string } 
                   </td>
                   <td className="py-2 pr-3">{fmtDate(m.dateOfBirth)}</td>
                   <td className="py-2 pr-3">{fmtDate(m.passportExpiry)}</td>
+                  <td className="py-2 pr-3">
+                    {m.passportImageKey ? (
+                      <a
+                        href={`/api/clients/${client.id}/family/${m.id}/passport-file`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={`pill ${m.passportVerified ? "pill-green" : "pill-gray"}`}
+                      >
+                        {m.passportVerified ? "✓ Verified" : "Manual review"}
+                      </a>
+                    ) : "—"}
+                  </td>
                   <td className="py-2 pr-3">{m.biometricsStatus ?? "—"}</td>
                   <td className="py-2 pr-3">{m.medicalStatus ?? "—"}</td>
                   <td className="py-2">{m.docsPct}%</td>

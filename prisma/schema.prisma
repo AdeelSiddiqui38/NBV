@@ -169,8 +169,11 @@ model FamilyMember {
   dateOfBirth      DateTime
   birthCountry     String?
   citizenship      String?
-  passportNumber   String?
+  passportNumber   String? // encrypted at rest (field-level, see crypto.ts)
   passportExpiry   DateTime?
+  passportImageKey  String? // storage key for the uploaded passport scan
+  passportImageMime String?
+  passportVerified  Boolean   @default(false) // true once MRZ checksum-validated via OCR
   occupationOrGrade String?
   priorRefusals    Boolean   @default(false)
   uci              String?
