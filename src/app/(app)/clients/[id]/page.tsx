@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { fmtCad, fmtDate, SETTLEMENT_FUNDS, GOVT_FEES } from "@/lib/constants";
-import AddFamilyMember from "@/components/AddFamilyMember";
+import FamilyPanel from "@/components/FamilyPanel";
 import TrustEntry from "@/components/TrustEntry";
 import { ClientEditButton, PaymentSchedule } from "@/components/ClientEdit";
 
@@ -98,59 +98,32 @@ export default async function ClientDetail({ params }: { params: { id: string } 
         }))}
       />
 
-      {/* Family Panel */}
-      <div className="card mb-5">
-        <h3 className="text-sm font-bold text-navy mb-3">👨‍👩‍👧 Family Panel</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-slate-500 border-b">
-                <th className="pb-2 pr-3 text-left">Member</th><th className="pb-2 pr-3 text-left">Relationship</th>
-                <th className="pb-2 pr-3 text-left">DOB</th><th className="pb-2 pr-3 text-left">Passport expiry</th>
-                <th className="pb-2 pr-3 text-left">Passport</th>
-                <th className="pb-2 pr-3 text-left">Biometrics</th><th className="pb-2 pr-3 text-left">Medical</th><th className="pb-2 text-left">Docs</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b">
-                <td className="py-2 pr-3 font-bold">{client.firstName} {client.lastName}</td>
-                <td className="py-2 pr-3"><span className="pill pill-blue">Principal</span></td>
-                <td className="py-2 pr-3">{fmtDate(client.dateOfBirth)}</td>
-                <td className="py-2 pr-3">{fmtDate(client.passportExpiry)}</td>
-                <td className="py-2 pr-3">—</td>
-                <td className="py-2 pr-3">—</td><td className="py-2 pr-3">—</td><td className="py-2">—</td>
-              </tr>
-              {client.familyMembers.map((m) => (
-                <tr key={m.id} className="border-b last:border-0">
-                  <td className="py-2 pr-3 font-semibold">{m.firstName} {m.lastName}</td>
-                  <td className="py-2 pr-3">
-                    {m.relationship}
-                    {!m.accompanying && <span className="pill pill-gray ml-1">not accompanying</span>}
-                  </td>
-                  <td className="py-2 pr-3">{fmtDate(m.dateOfBirth)}</td>
-                  <td className="py-2 pr-3">{fmtDate(m.passportExpiry)}</td>
-                  <td className="py-2 pr-3">
-                    {m.passportImageKey ? (
-                      <a
-                        href={`/api/clients/${client.id}/family/${m.id}/passport-file`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={`pill ${m.passportVerified ? "pill-green" : "pill-gray"}`}
-                      >
-                        {m.passportVerified ? "✓ Verified" : "Manual review"}
-                      </a>
-                    ) : "—"}
-                  </td>
-                  <td className="py-2 pr-3">{m.biometricsStatus ?? "—"}</td>
-                  <td className="py-2 pr-3">{m.medicalStatus ?? "—"}</td>
-                  <td className="py-2">{m.docsPct}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <div className="mt-3"><AddFamilyMember clientId={client.id} /></div>
-      </div>
+      <FamilyPanel
+        clientId={client.id}
+        principal={{
+          firstName: client.firstName,
+          lastName: client.lastName,
+          dateOfBirth: client.dateOfBirth ? client.dateOfBirth.toISOString() : null,
+          passportExpiry: client.passportExpiry ? client.passportExpiry.toISOString() : null,
+        }}
+        familyMembers={client.familyMembers.map((m) => ({
+          id: m.id,
+          relationship: m.relationship,
+          firstName: m.firstName,
+          lastName: m.lastName,
+          dateOfBirth: m.dateOfBirth.toISOString(),
+          citizenship: m.citizenship,
+          passportExpiry: m.passportExpiry ? m.passportExpiry.toISOString() : null,
+          passportImageKey: m.passportImageKey,
+          passportVerified: m.passportVerified,
+          occupationOrGrade: m.occupationOrGrade,
+          accompanying: m.accompanying,
+          priorRefusals: m.priorRefusals,
+          biometricsStatus: m.biometricsStatus,
+          medicalStatus: m.medicalStatus,
+          docsPct: m.docsPct,
+        }))}
+      />
 
       <div className="grid lg:grid-cols-2 gap-4">
         <div className="card">

@@ -1,10 +1,11 @@
 // Reads the machine-readable zone (MRZ) off a passport bio-page photo/scan.
 // Self-hosted: Tesseract.js (OCR) + mrz (checksum-validated field parsing). No external API/key.
-import { createWorker } from "tesseract.js";
+import { createWorker, type Worker } from "tesseract.js";
 import { parse } from "mrz";
 
 const MRZ_LINE = /^[A-Z0-9<]{30,44}$/;
 const MRZ_WHITELIST = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789<";
+const SCAN_TIMEOUT_MS = 25_000; // hard ceiling — never let a stuck OCR call hang the request indefinitely
 
 export interface PassportFields {
   firstName: string;
@@ -33,9 +34,13 @@ function mrzDateToISO(yymmdd: string | null | undefined, bias: "past" | "future"
   return `${century + yy}-${mm}-${dd}`;
 }
 
+export class PassportScanTimeout extends Error {}
+
 export async function scanPassportImage(buf: Buffer): Promise<PassportScanResult> {
-  const worker = await createWorker("eng");
-  try {
+  let worker: Worker | null = null;
+
+  const run = async (): Promise<PassportScanResult> => {
+    worker = await createWorker("eng");
     await worker.setParameters({ tessedit_char_whitelist: MRZ_WHITELIST });
     const { data } = await worker.recognize(buf);
     const candidateLines = (data.lines ?? [])
@@ -57,7 +62,16 @@ export async function scanPassportImage(buf: Buffer): Promise<PassportScanResult
       passportExpiry: mrzDateToISO(f.expirationDate, "future"),
     };
     return { valid: result.valid, fields, rawMrz: mrzLines.join("\n") };
+  };
+
+  try {
+    return await Promise.race([
+      run(),
+      new Promise<PassportScanResult>((_, reject) =>
+        setTimeout(() => reject(new PassportScanTimeout("Passport scan timed out")), SCAN_TIMEOUT_MS)
+      ),
+    ]);
   } finally {
-    await worker.terminate();
+    if (worker) await (worker as Worker).terminate().catch(() => {});
   }
 }
