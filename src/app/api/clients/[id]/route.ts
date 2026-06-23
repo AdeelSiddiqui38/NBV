@@ -14,6 +14,7 @@ const schema = z.object({
   netWorthBand: z.string().optional().nullable(),
   status: z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]).optional(),
   dateOfBirth: z.string().optional().nullable(),
+  passportExpiry: z.string().optional().nullable(),
 });
 
 // PATCH /api/clients/[id] — update a client (admin only)
@@ -44,6 +45,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       ...(d.netWorthBand !== undefined && { netWorthBand: d.netWorthBand }),
       ...(d.status && { status: d.status }),
       ...(d.dateOfBirth !== undefined && { dateOfBirth: d.dateOfBirth ? new Date(d.dateOfBirth) : null }),
+      ...(d.passportExpiry !== undefined && { passportExpiry: d.passportExpiry ? new Date(d.passportExpiry) : null }),
     },
   });
 

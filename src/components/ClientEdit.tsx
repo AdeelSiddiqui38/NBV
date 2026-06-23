@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type Client = {
@@ -28,9 +28,23 @@ export function ClientEditButton({ client }: { client: Client }) {
     country: client.country || "", maritalStatus: client.maritalStatus || "",
     source: client.source || "", netWorthBand: client.netWorthBand || "",
     status: client.status || "ACTIVE",
+    dateOfBirth: client.dateOfBirth ? client.dateOfBirth.slice(0, 10) : "",
+    passportExpiry: client.passportExpiry ? client.passportExpiry.slice(0, 10) : "",
   });
+  const [passportNumber, setPassportNumber] = useState("");
+  const [maskedPassportNumber, setMaskedPassportNumber] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  // Passport number is encrypted and not part of the regular client record fetch —
+  // fetch a masked preview when the modal opens so staff can see one is on file.
+  useEffect(() => {
+    if (!open) return;
+    fetch(`/api/clients/${client.id}/sensitive`)
+      .then((r) => r.json())
+      .then((d) => setMaskedPassportNumber(d.fields?.passportNumber ?? null))
+      .catch(() => {});
+  }, [open, client.id]);
 
   const save = async () => {
     setBusy(true); setError("");
@@ -38,9 +52,17 @@ export function ClientEditButton({ client }: { client: Client }) {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f),
     });
     const d = await r.json().catch(() => ({}));
-    setBusy(false);
-    if (r.ok) { setOpen(false); router.refresh(); }
-    else setError(d.error ?? "Save failed");
+    if (!r.ok) { setBusy(false); setError(d.error ?? "Save failed"); return; }
+
+    if (passportNumber) {
+      const r2 = await fetch(`/api/clients/${client.id}/sensitive`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ passportNumber }),
+      });
+      const d2 = await r2.json().catch(() => ({}));
+      if (!r2.ok) { setBusy(false); setError(d2.error ?? "Save failed"); return; }
+    }
+
+    setBusy(false); setOpen(false); router.refresh();
   };
 
   return (
@@ -74,6 +96,22 @@ export function ClientEditButton({ client }: { client: Client }) {
                   <option value="INACTIVE">Inactive</option>
                   <option value="ARCHIVED">Archived</option>
                 </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Date of Birth</label>
+                <input className="w-full border rounded px-2 py-1.5 text-sm" type="date"
+                  value={f.dateOfBirth} onChange={e => setF(p => ({ ...p, dateOfBirth: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Passport Expiry</label>
+                <input className="w-full border rounded px-2 py-1.5 text-sm" type="date"
+                  value={f.passportExpiry} onChange={e => setF(p => ({ ...p, passportExpiry: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1">Passport Number</label>
+                <input className="w-full border rounded px-2 py-1.5 text-sm"
+                  placeholder={maskedPassportNumber ? `On file: ${maskedPassportNumber} — leave blank to keep` : "Passport number"}
+                  value={passportNumber} onChange={e => setPassportNumber(e.target.value)} />
               </div>
             </div>
             <div className="flex justify-end gap-3 mt-5">

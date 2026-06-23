@@ -20,10 +20,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string; me
   const dob = new Date(d.dateOfBirth);
   const { age, dependentEligible, biometricsStatus, medicalStatus } = computeAutoFields(d.relationship, dob, d.accompanying);
 
-  // Keep the previously attached scan unless a new one was provided.
+  // Keep the previously attached scan/passport number unless a replacement was provided —
+  // the number is never sent back to the edit form (it's encrypted), so a blank field here
+  // means "unchanged", not "clear it".
   const passportImageKey = d.passportImageKey || existing.passportImageKey;
   const passportImageMime = d.passportImageMime || existing.passportImageMime;
   const passportVerified = d.passportImageKey ? d.passportVerified : existing.passportVerified;
+  const passportNumber = d.passportNumber ? encryptField(d.passportNumber) : existing.passportNumber;
 
   await db.familyMember.update({
     where: { id: existing.id },
@@ -34,7 +37,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string; me
       dateOfBirth: dob,
       accompanying: d.accompanying,
       citizenship: d.citizenship || null,
-      passportNumber: d.passportNumber ? encryptField(d.passportNumber) : null,
+      passportNumber,
       passportExpiry: d.passportExpiry ? new Date(d.passportExpiry) : null,
       passportImageKey,
       passportImageMime,

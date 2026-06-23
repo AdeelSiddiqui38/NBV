@@ -55,6 +55,8 @@ export default async function ClientDetail({ params }: { params: { id: string } 
             email: client.email, phone: client.phone, country: client.country,
             maritalStatus: client.maritalStatus, source: client.source,
             netWorthBand: client.netWorthBand, status: client.status,
+            dateOfBirth: client.dateOfBirth ? client.dateOfBirth.toISOString() : null,
+            passportExpiry: client.passportExpiry ? client.passportExpiry.toISOString() : null,
           }} />
         </div>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type FamilyMemberValues = {
   relationship: string;
@@ -44,6 +44,17 @@ export default function FamilyMemberForm({
   const [scanStatus, setScanStatus] = useState<"none" | "verified" | "unverified">(
     f.passportImageKey ? (f.passportVerified ? "verified" : "unverified") : "none"
   );
+  const [maskedPassportNumber, setMaskedPassportNumber] = useState<string | null>(null);
+
+  // Passport number is encrypted and never sent down with the member list, so on edit we
+  // separately fetch a masked preview — the input itself stays blank (blank = "leave unchanged").
+  useEffect(() => {
+    if (!memberId) return;
+    fetch(`/api/clients/${clientId}/family/${memberId}/passport-number`)
+      .then((r) => r.json())
+      .then((d) => setMaskedPassportNumber(d.value ?? null))
+      .catch(() => {});
+  }, [clientId, memberId]);
 
   const set = (k: keyof FamilyMemberValues) => (e: any) => setF({ ...f, [k]: e.target.value });
 
@@ -135,7 +146,14 @@ export default function FamilyMemberForm({
         <input className="input" placeholder="Last name *" value={f.lastName} onChange={set("lastName")} />
         <input className="input" type="date" value={f.dateOfBirth} onChange={set("dateOfBirth")} />
         <input className="input" placeholder="Citizenship" value={f.citizenship} onChange={set("citizenship")} />
-        <input className="input" placeholder="Passport number" value={f.passportNumber} onChange={set("passportNumber")} />
+        <div>
+          <input
+            className="input"
+            placeholder={maskedPassportNumber ? `On file: ${maskedPassportNumber} — leave blank to keep` : "Passport number"}
+            value={f.passportNumber}
+            onChange={set("passportNumber")}
+          />
+        </div>
         <input className="input" type="date" placeholder="Passport expiry" value={f.passportExpiry} onChange={set("passportExpiry")} />
         <input className="input" placeholder="Occupation / school grade" value={f.occupationOrGrade} onChange={set("occupationOrGrade")} />
         <div className="flex items-center gap-3">
