@@ -77,8 +77,9 @@ export async function loadFile(storageKey: string): Promise<Buffer> {
 }
 
 // Enforced naming convention: YYYY-MM-DD_<DocType>_<Party>_v<N>.<ext>
-export function standardName(docType: string, party: string, version: number, ext: string): string {
-  const date = new Date().toISOString().slice(0, 10);
+// `date` defaults to today (new upload); pass the original date prefix when renaming on metadata edit.
+export function standardName(docType: string, party: string, version: number, ext: string, date?: string): string {
+  const d = date ?? new Date().toISOString().slice(0, 10);
   const clean = (s: string) => s.replace(/[^A-Za-z0-9]/g, "");
-  return `${date}_${clean(docType)}_${clean(party)}_v${version}${ext}`;
+  return `${d}_${clean(docType)}_${clean(party)}_v${version}${ext}`;
 }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getSession } from "@/lib/auth";
-import { fmtDate, daysUntil } from "@/lib/constants";
+import { fmtDate, daysUntil, SIMPLIFIED_REVIEW_FOLDERS } from "@/lib/constants";
 import { folderAllowed } from "@/lib/permissions";
 import UploadDoc from "@/components/UploadDoc";
 import DocActions from "@/components/DocActions";
@@ -61,6 +61,9 @@ export default async function CaseDocuments({ params }: { params: { id: string }
                 locked={d.locked}
                 unfiled={true}
                 folders={visibleFolders.map((f) => ({ id: f.id, label: `${f.code} ${f.name}` }))}
+                docType={d.docType}
+                party={d.party}
+                expiryDate={d.expiryDate ? d.expiryDate.toISOString() : null}
               />
             </div>
           ))}
@@ -92,6 +95,7 @@ export default async function CaseDocuments({ params }: { params: { id: string }
           <h3 className="text-sm font-bold text-navy mb-2">
             {f.code} · {f.name} <span className="text-slate-400 font-normal">({f.documents.length})</span>
             {f.code === "13" && <span className="pill pill-gray ml-2">staff-only · excluded from client exports</span>}
+            {SIMPLIFIED_REVIEW_FOLDERS.has(f.code) && <span className="pill pill-gray ml-2">no review workflow — files straight to Received</span>}
           </h3>
           {f.documents.length === 0 ? (
             <div className="text-xs text-slate-400">Empty.</div>
@@ -114,7 +118,11 @@ export default async function CaseDocuments({ params }: { params: { id: string }
                     <td className="text-xs">{fmtDate(d.expiryDate)}</td>
                     <td className="text-[10px] text-slate-400">{d.sha256 ? `sha ${d.sha256.slice(0, 10)}…` : "—"}</td>
                     <td>
-                      <DocActions docId={d.id} status={d.status} locked={d.locked} unfiled={false} folders={[]} />
+                      <DocActions
+                        docId={d.id} status={d.status} locked={d.locked} unfiled={false} folders={[]}
+                        docType={d.docType} party={d.party} expiryDate={d.expiryDate ? d.expiryDate.toISOString() : null}
+                        simplified={SIMPLIFIED_REVIEW_FOLDERS.has(f.code)}
+                      />
                     </td>
                   </tr>
                 ))}

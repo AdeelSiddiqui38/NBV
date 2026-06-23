@@ -68,6 +68,27 @@ export const FOLDER_TAXONOMY: [string, string][] = [
   ["13", "Notes & Internal"],
 ];
 
+// Folders whose documents are supporting evidence/records — never filed with IRCC directly,
+// so they skip the Review/Approve/Submitted lifecycle and rest at "Received" once uploaded.
+// Everything else keeps the full lifecycle (CICC audit trail of who reviewed/approved before
+// it went to IRCC) — see 01-Product-Requirements.md "Filing discipline".
+export const SIMPLIFIED_REVIEW_FOLDERS = new Set(["05", "06", "07", "11", "12", "13"]);
+
+export const DOC_TYPES = [
+  "PASSPORT", "PHOTO", "BIRTH_CERT", "MARRIAGE_CERT", "POLICE_CERT", "MEDICAL",
+  "RETAINER", "ICA", "IMM5476", "CONSENT", "COI_DISCLOSURE", "ILA_CONFIRMATION",
+  "CV", "PRIOR_BUSINESS_PROOF", "NET_WORTH",
+  "BUSINESS_PLAN", "MARKET_RESEARCH", "FINANCIAL_PROJECTIONS",
+  "NUANS", "ARTICLES", "CERTIFICATE_INC", "BYLAWS", "SHARE_REGISTER", "MINUTE_BOOK", "BN_CONFIRMATION",
+  "BANK_CONFIRMATION", "BANK_STATEMENT", "WIRE_RECEIPT", "SOURCE_OF_FUNDS", "PERSONAL_FUNDS",
+  "LEASE", "SUPPLIER_LOI", "CONTRACT", "INSURANCE",
+  "OFFER_SUMMARY", "COMPLIANCE_FEE", "A_NUMBER_PROOF",
+  "IRCC_FORM", "FEE_RECEIPT", "SUBMISSION_LETTER",
+  "AOR", "BIOMETRICS_LETTER", "ADR_LETTER", "DECISION_LETTER", "PERMIT",
+  "PAYROLL", "T4", "FINANCIAL_STATEMENT",
+  "INVOICE", "RECEIPT", "MEMO", "OTHER",
+];
+
 export const LIST_PRICE = 30000;
 export const FLOOR_PRICE = 22000;
 export const RCIC_MAX_DISCOUNT_PCT = 15;
