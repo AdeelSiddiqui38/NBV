@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession, logActivity } from "@/lib/auth";
 import { MILESTONE_SPLIT } from "@/lib/constants";
+import { nextNumber } from "@/lib/sequence";
 
 const lineSchema = z.object({
   kind: z.enum(["FEE", "DISBURSEMENT"]),
@@ -54,10 +55,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   const feePortion = lines.filter((l) => l.kind === "FEE").reduce((s, l) => s + l.amount, 0);
   const total = Math.round((subtotal + feePortion * d.taxRate) * 100) / 100;
 
-  const count = await db.invoice.count();
+  const invoicePrefix = "NBV-INV-2026-";
+  const invoiceNumber = await nextNumber({
+    current: async () => (await db.invoice.findFirst({ where: { number: { startsWith: invoicePrefix } }, orderBy: { number: "desc" }, select: { number: true } }))?.number ?? null,
+    prefix: invoicePrefix,
+    padLen: 4,
+    start: 50,
+  });
   const inv = await db.invoice.create({
     data: {
-      number: `NBV-INV-2026-${String(count + 50).padStart(4, "0")}`,
+      number: invoiceNumber,
       clientId: c.clientId,
       caseId: c.id,
       milestone,

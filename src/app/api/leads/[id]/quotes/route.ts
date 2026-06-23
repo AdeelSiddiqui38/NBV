@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession, logActivity } from "@/lib/auth";
 import { LIST_PRICE, FLOOR_PRICE, RCIC_MAX_DISCOUNT_PCT } from "@/lib/constants";
+import { nextNumber } from "@/lib/sequence";
 
 const adjSchema = z.object({
   type: z.enum(["PCT_DISCOUNT", "FIXED_REDUCTION", "SCOPE_REMOVED", "MARKET_ADJ", "EQUITY_CONSIDERATION"]),
@@ -40,10 +41,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (offer < FLOOR_PRICE && user.role !== "ADMIN") requiresApproval = true;
 
   const version = (lead.quotes.reduce((m, q) => Math.max(m, q.version), 0) || 0) + 1;
-  const count = await db.feeQuote.count();
+  const quotePrefix = "Q-2026-";
+  const quoteNumber = await nextNumber({
+    current: async () => (await db.feeQuote.findFirst({ where: { number: { startsWith: quotePrefix } }, orderBy: { number: "desc" }, select: { number: true } }))?.number ?? null,
+    prefix: quotePrefix,
+    padLen: 3,
+    start: 40,
+  });
   const quote = await db.feeQuote.create({
     data: {
-      number: `Q-2026-${String(count + 40).padStart(3, "0")}`,
+      number: quoteNumber,
       leadId: lead.id,
       version,
       listPrice: LIST_PRICE,

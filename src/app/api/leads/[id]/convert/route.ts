@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession, logActivity } from "@/lib/auth";
 import { FOLDER_TAXONOMY, MILESTONE_SPLIT } from "@/lib/constants";
+import { nextNumber } from "@/lib/sequence";
 
 const schema = z.object({
   firstName: z.string().min(1),
@@ -52,105 +53,130 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const agreedFee = agreedQuote.agreedFee!;
   const year = new Date().getFullYear();
-  const clientCount = await db.client.count();
-  const caseCount = await db.case.count();
-  const clientNumber = `NBV-C-${year}-${String(clientCount + 10).padStart(4, "0")}`;
-  const fileNumber = `NBV-${year}-${String(caseCount + 10).padStart(4, "0")}`;
+  const clientPrefix = `NBV-C-${year}-`;
+  const filePrefix = `NBV-${year}-`;
+  const clientNumber = await nextNumber({
+    current: async () => (await db.client.findFirst({ where: { clientNumber: { startsWith: clientPrefix } }, orderBy: { clientNumber: "desc" }, select: { clientNumber: true } }))?.clientNumber ?? null,
+    prefix: clientPrefix,
+    padLen: 4,
+    start: 10,
+  });
+  const fileNumber = await nextNumber({
+    current: async () => (await db.case.findFirst({ where: { fileNumber: { startsWith: filePrefix } }, orderBy: { fileNumber: "desc" }, select: { fileNumber: true } }))?.fileNumber ?? null,
+    prefix: filePrefix,
+    padLen: 4,
+    start: 10,
+  });
 
-  const result = await db.$transaction(async (tx) => {
-    const client = await tx.client.create({
-      data: {
-        clientNumber,
-        firstName: data.firstName,
-        lastName: data.lastName,
-        email: lead.email,
-        phone: lead.phone,
-        country: lead.country,
-        dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
-        maritalStatus: data.maritalStatus,
-        source: lead.source,
-        pipedaConsentAt: new Date(),
-      },
-    });
-
-    const c = await tx.case.create({
-      data: {
-        fileNumber,
-        clientId: client.id,
-        caseType: data.caseType,
-        engagementMode: data.engagementMode,
-        currentStage: "ONBOARDING",
-        rcicId: data.rcicId,
-        caseManagerId: data.caseManagerId || null,
-        agreedFee,
-        folders: { create: FOLDER_TAXONOMY.map(([code, name]) => ({ code, name })) },
-      },
-    });
-
-    await tx.caseStageLog.create({
-      data: {
-        caseId: c.id,
-        toStage: "ONBOARDING",
-        note: `File opened (retainer). Agreed fee ${agreedFee} per ${agreedQuote.number} (evidence: ${agreedQuote.acceptanceRef}). Conflict check clear ✓ ID verified ✓.`,
-        byUserId: user.id,
-      },
-    });
-
-    // First milestone invoice from the agreed fee — single source of truth
-    const m1 = MILESTONE_SPLIT[0];
-    const m1Amount = Math.round(agreedFee * (m1.pct / 100));
-    const invCount = await tx.invoice.count();
-    await tx.invoice.create({
-      data: {
-        number: `NBV-INV-2026-${String(invCount + 50).padStart(4, "0")}`,
-        clientId: client.id,
-        caseId: c.id,
-        milestone: m1.label,
-        status: "SENT",
-        dueDate: new Date(Date.now() + 14 * 86400000),
-        subtotal: m1Amount,
-        taxRate: 0.05,
-        total: Math.round(m1Amount * 1.05),
-        lines: { create: [{ kind: "FEE", description: `${m1.label} (${m1.pct}% of agreed fee)`, amount: m1Amount }] },
-      },
-    });
-
-    // Trust deposit if received
-    if (data.trustDeposit > 0) {
-      await tx.trustTransaction.create({
+  let result;
+  try {
+    result = await db.$transaction(async (tx) => {
+      const client = await tx.client.create({
         data: {
-          clientId: client.id,
-          type: "DEPOSIT",
-          amount: data.trustDeposit,
-          memo: "Retainer advance (file opening)",
-          reference: data.trustReference || null,
-          enteredById: user.id,
-          approvedById: user.id,
+          clientNumber,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: lead.email,
+          phone: lead.phone,
+          country: lead.country,
+          dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
+          maritalStatus: data.maritalStatus,
+          source: lead.source,
+          pipedaConsentAt: new Date(),
         },
       });
-    }
 
-    // Onboarding task bundle (auto)
-    const tasks = [
-      "Upload signed retainer to folder 01",
-      "IMM 5476 (Use of Representative) — prepare & track signature",
-      "Record intent-strategy advice entry (locked)",
-      "Complete Family Panel — all members, accompanying flags",
-      "Collect entrepreneur profile (CV, prior businesses, net worth)",
-    ];
-    for (const title of tasks) {
-      await tx.task.create({
-        data: { title, caseId: c.id, assigneeId: data.caseManagerId || data.rcicId, dueDate: new Date(Date.now() + 7 * 86400000), priority: "MED" },
+      const c = await tx.case.create({
+        data: {
+          fileNumber,
+          clientId: client.id,
+          caseType: data.caseType,
+          engagementMode: data.engagementMode,
+          currentStage: "ONBOARDING",
+          rcicId: data.rcicId,
+          caseManagerId: data.caseManagerId || null,
+          agreedFee,
+          folders: { create: FOLDER_TAXONOMY.map(([code, name]) => ({ code, name })) },
+        },
       });
-    }
 
-    await tx.lead.update({
-      where: { id: lead.id },
-      data: { stage: "WON", convertedAt: new Date(), clientId: client.id },
+      await tx.caseStageLog.create({
+        data: {
+          caseId: c.id,
+          toStage: "ONBOARDING",
+          note: `File opened (retainer). Agreed fee ${agreedFee} per ${agreedQuote.number} (evidence: ${agreedQuote.acceptanceRef}). Conflict check clear ✓ ID verified ✓.`,
+          byUserId: user.id,
+        },
+      });
+
+      // First milestone invoice from the agreed fee — single source of truth
+      const m1 = MILESTONE_SPLIT[0];
+      const m1Amount = Math.round(agreedFee * (m1.pct / 100));
+      const invoicePrefix = "NBV-INV-2026-";
+      const invoiceNumber = await nextNumber({
+        current: async () => (await tx.invoice.findFirst({ where: { number: { startsWith: invoicePrefix } }, orderBy: { number: "desc" }, select: { number: true } }))?.number ?? null,
+        prefix: invoicePrefix,
+        padLen: 4,
+        start: 50,
+      });
+      await tx.invoice.create({
+        data: {
+          number: invoiceNumber,
+          clientId: client.id,
+          caseId: c.id,
+          milestone: m1.label,
+          status: "SENT",
+          dueDate: new Date(Date.now() + 14 * 86400000),
+          subtotal: m1Amount,
+          taxRate: 0.05,
+          total: Math.round(m1Amount * 1.05),
+          lines: { create: [{ kind: "FEE", description: `${m1.label} (${m1.pct}% of agreed fee)`, amount: m1Amount }] },
+        },
+      });
+
+      // Trust deposit if received
+      if (data.trustDeposit > 0) {
+        await tx.trustTransaction.create({
+          data: {
+            clientId: client.id,
+            type: "DEPOSIT",
+            amount: data.trustDeposit,
+            memo: "Retainer advance (file opening)",
+            reference: data.trustReference || null,
+            enteredById: user.id,
+            approvedById: user.id,
+          },
+        });
+      }
+
+      // Onboarding task bundle (auto)
+      const tasks = [
+        "Upload signed retainer to folder 01",
+        "IMM 5476 (Use of Representative) — prepare & track signature",
+        "Record intent-strategy advice entry (locked)",
+        "Complete Family Panel — all members, accompanying flags",
+        "Collect entrepreneur profile (CV, prior businesses, net worth)",
+      ];
+      for (const title of tasks) {
+        await tx.task.create({
+          data: { title, caseId: c.id, assigneeId: data.caseManagerId || data.rcicId, dueDate: new Date(Date.now() + 7 * 86400000), priority: "MED" },
+        });
+      }
+
+      await tx.lead.update({
+        where: { id: lead.id },
+        data: { stage: "WON", convertedAt: new Date(), clientId: client.id },
+      });
+
+      return { client, case: c };
     });
-
-    return { client, case: c };
-  });
+  } catch (err) {
+    console.error("Lead conversion failed:", err);
+    return NextResponse.json(
+      { error: "Could not open the client file — the transaction was rolled back. Please retry; if this keeps happening, contact support with the lead name and time." },
+      { status: 500 }
+    );
+  }
 
   await logActivity(
     user, "client", "client_onboarded",

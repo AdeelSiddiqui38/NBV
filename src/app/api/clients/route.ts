@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getSession, logActivity } from "@/lib/auth";
+import { nextNumber } from "@/lib/sequence";
 
 const schema = z.object({
   firstName: z.string().min(1, "First name required"),
@@ -48,15 +49,13 @@ export async function POST(req: Request) {
 
   // Generate unique client number (e.g., C-2026-001)
   const year = new Date().getFullYear();
-  const count = await db.client.count({
-    where: {
-      createdAt: {
-        gte: new Date(`${year}-01-01`),
-        lt: new Date(`${year + 1}-01-01`),
-      },
-    },
+  const prefix = `C-${year}-`;
+  const clientNumber = await nextNumber({
+    current: async () => (await db.client.findFirst({ where: { clientNumber: { startsWith: prefix } }, orderBy: { clientNumber: "desc" }, select: { clientNumber: true } }))?.clientNumber ?? null,
+    prefix,
+    padLen: 3,
+    start: 1,
   });
-  const clientNumber = `C-${year}-${String(count + 1).padStart(3, "0")}`;
 
   const client = await db.client.create({
     data: {
